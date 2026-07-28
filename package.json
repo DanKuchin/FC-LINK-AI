@@ -1,0 +1,16 @@
+{
+  "name": "tenure",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Companion management game for EA Sports FC 26 (offline career). Phase 0 spike.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "spike:server": "node spike/server.mjs",
+    "spike:install": "powershell -ExecutionPolicy Bypass -File spike/install-scripts.ps1",
+    "spike:detect": "node spike/detect.mjs",
+    "spike:report": "node spike/report.mjs"
+  }
+}

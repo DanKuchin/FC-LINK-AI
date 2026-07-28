@@ -1,0 +1,14 @@
+node_modules/
+dist/
+out/
+*.log
+
+# Spike output — machine-specific, can contain career data
+spike/out/
+tests/fixtures/schema-*.json
+tests/fixtures/snapshots/
+
+# Local environment
+.env
+.env.local
+local.config.json
