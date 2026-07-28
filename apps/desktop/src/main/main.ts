@@ -1,7 +1,13 @@
 import { app, BrowserWindow, shell } from 'electron';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { openDatabase } from '@tenure/persistence/db.js';
+import { recordDiagnosticRun } from '@tenure/persistence/diagnostics.js';
+import { parseManifest } from '@tenure/sync/compat/manifest.js';
 import { createDiagnosticBundle } from '@tenure/sync/doctor/bundle.js';
+import { doctorSummary } from '@tenure/sync/doctor/doctor.js';
+import compatibilityManifestJson from '../../../../packages/sync/compat/manifest.json' with { type: 'json' };
 import { registerIpc } from './ipc/register.js';
 import {
   applyBridgeInstall as applyBridgeInstallPlan,
@@ -15,10 +21,11 @@ import {
 import { CheckpointService } from './services/checkpointService.js';
 import { ResultService } from './services/resultService.js';
 import { MatchPrepService } from './services/matchPrepService.js';
+import { BridgeRuntime } from './services/bridgeRuntime.js';
+import { SquadService } from './services/squadService.js';
 import type {
   BridgeInstallPreview,
   EnvironmentSummary,
-  SyncStatus,
 } from '../shared/ipc.js';
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
@@ -34,45 +41,11 @@ function environmentSummary(detected: EnvironmentDetection): EnvironmentSummary 
     gameBuild: detected.game.build,
     liveEditorFound: detected.liveEditor.found,
     liveEditorPath: detected.liveEditor.path,
+    liveEditorVersion: detected.liveEditor.version,
     requiredLiveEditor: detected.liveEditor.requiredForBuild,
     problem: detected.game.problem ??
       detected.liveEditor.problem ??
       (detected.platform === 'win32' ? null : 'FC integration requires Windows.'),
-  };
-}
-
-function syncStatusFor(environment: EnvironmentSummary): SyncStatus {
-  if (!environment.gameFound || !environment.liveEditorFound) {
-    return {
-      state: 'offline',
-      label: 'Offline — playable',
-      detail: !environment.gameFound
-        ? 'EA Sports FC 26 was not found. Choose its installation in Sync Doctor.'
-        : 'FC Live Editor was not found. Choose its installation in Sync Doctor.',
-      writesEnabled: false,
-    };
-  }
-  if (environment.problem !== null || environment.gameBuild === null) {
-    return {
-      state: 'attention',
-      label: 'Integration needs attention',
-      detail: environment.problem ?? 'The FC build number could not be read.',
-      writesEnabled: false,
-    };
-  }
-  if (environment.requiredLiveEditor === null) {
-    return {
-      state: 'attention',
-      label: 'Unsupported game build',
-      detail: `FC build ${environment.gameBuild} is absent from Live Editor's compatibility table.`,
-      writesEnabled: false,
-    };
-  }
-  return {
-    state: 'offline',
-    label: 'Detected — bridge not connected',
-    detail: `FC ${environment.gameBuild} requires Live Editor ${environment.requiredLiveEditor.join('–')}.`,
-    writesEnabled: false,
   };
 }
 
@@ -116,18 +89,43 @@ async function createWindow(): Promise<BrowserWindow> {
     const smokeState = await window.webContents.executeJavaScript(
       `Promise.resolve().then(async () => ({
         preloadReady: typeof window.tenure?.versions === 'function',
-        versions: await window.tenure?.versions?.()
+        versions: await window.tenure?.versions?.(),
+        doctorConditions: await window.tenure?.doctorConditions?.(),
+        squadSurface: {
+          table: document.querySelector('table caption')?.textContent,
+          sortableColumns: document.querySelectorAll('th[aria-sort]').length,
+          densityControl: document.querySelector('[data-density] select') !== null,
+          playerProfile: document.querySelector('.player-profile h2')?.textContent
+        }
       }))`,
       true,
-    ) as { readonly preloadReady: boolean; readonly versions?: { readonly sqliteAvailable: boolean } };
-    if (!smokeState.preloadReady || smokeState.versions?.sqliteAvailable !== true) {
+    ) as {
+      readonly preloadReady: boolean;
+      readonly versions?: { readonly sqliteAvailable: boolean };
+      readonly doctorConditions?: readonly unknown[];
+      readonly squadSurface?: {
+        readonly table?: string;
+        readonly sortableColumns: number;
+        readonly densityControl: boolean;
+        readonly playerProfile?: string;
+      };
+    };
+    if (
+      !smokeState.preloadReady ||
+      smokeState.versions?.sqliteAvailable !== true ||
+      smokeState.doctorConditions?.length !== 12 ||
+      smokeState.squadSurface?.table !== 'Managed first-team squad' ||
+      smokeState.squadSurface.sortableColumns < 6 ||
+      !smokeState.squadSurface.densityControl ||
+      !smokeState.squadSurface.playerProfile
+    ) {
       process.stderr.write(
-        'TENURE_SMOKE_FAILED: typed preload API or Electron node:sqlite runtime is unavailable\n',
+        'TENURE_SMOKE_FAILED: preload, node:sqlite, live Doctor, or Squad trust surface is unavailable\n',
       );
       app.exit(1);
     } else {
       process.stdout.write(
-        'TENURE_SMOKE_OK: renderer, typed preload API, IPC, and node:sqlite are available\n',
+        'TENURE_SMOKE_OK: renderer, typed IPC, node:sqlite, live Doctor, and Squad trust surface are available\n',
       );
       window.close();
       app.quit();
@@ -160,9 +158,25 @@ app.whenReady().then(async () => {
     careerPath: path.join(dataDirectory, 'career.db'),
     checkpointDirectory: path.join(dataDirectory, 'checkpoints'),
   });
+  const squadService = new SquadService({
+    careerPath: path.join(dataDirectory, 'career.db'),
+  });
+  const bridgeRuntime = new BridgeRuntime({
+    dataDirectory,
+    careerPath: path.join(dataDirectory, 'career.db'),
+    snapshotDirectory: path.join(dataDirectory, 'snapshots'),
+    manifest: parseManifest(JSON.stringify(compatibilityManifestJson)),
+    hostEnvironment: detect,
+  });
+  await bridgeRuntime.start();
+  app.on('will-quit', () => {
+    void bridgeRuntime.close();
+  });
   registerIpc({
     sqliteAvailable: await sqliteAvailable(),
-    syncStatus: () => syncStatusFor(detect()),
+    syncStatus: () => bridgeRuntime.syncStatus(detect()),
+    doctorConditions: () => bridgeRuntime.conditions(detect()),
+    squad: () => squadService.get(),
     environment: detect,
     setManualGamePath: (selectedPath) => {
       manualGamePath = selectedPath;
@@ -206,25 +220,35 @@ app.whenReady().then(async () => {
     listCheckpoints: () => checkpointService.list(),
     restoreCheckpoint: (checkpointId) => checkpointService.restore(checkpointId),
     exportDiagnostics: (outputPath) => {
-      createDiagnosticBundle({
+      const createdAt = Date.now();
+      const conditions = bridgeRuntime.conditions(detect());
+      const result = createDiagnosticBundle({
         outputPath,
-        createdAt: Date.now(),
+        createdAt,
         versions: {
           app: app.getVersion(),
           saveSchema: 3,
           bridgeProtocol: 1,
           compatibilityManifest: 1,
         },
-        conditions: [],
-        logs: [{
-          name: 'desktop.ndjson',
-          content: `${JSON.stringify({
-            at: Date.now(),
-            state: 'offline',
-            reason: 'No live FC career is connected.',
-          })}\n`,
-        }],
+        conditions,
+        logs: bridgeRuntime.diagnosticLogs(),
       });
+      const careerPath = path.join(dataDirectory, 'career.db');
+      if (fs.existsSync(careerPath)) {
+        const db = openDatabase(careerPath);
+        try {
+          const career = db.get<{ id: number }>('SELECT id FROM careers ORDER BY id LIMIT 1');
+          recordDiagnosticRun(db, {
+            careerId: career?.id ?? null,
+            createdAt,
+            summary: doctorSummary(conditions),
+            bundlePath: result.path,
+          });
+        } finally {
+          db.close();
+        }
+      }
     },
   });
   await createWindow();

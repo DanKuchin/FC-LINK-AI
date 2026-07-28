@@ -20,6 +20,7 @@ import {
   restoreCheckpoint,
   verifyCheckpoint,
 } from './checkpoints.js';
+import { archiveSnapshot } from './snapshots.js';
 
 let tmp: string;
 beforeEach(() => {
@@ -409,6 +410,56 @@ describe('checkpoints', () => {
     expect(db.get<{ name: string }>('SELECT name FROM careers')?.name).toBe('Test');
     expect(db.integrityProblem()).toBeNull();
     db.close();
+  });
+
+  it('bundles, verifies, and restores the latest raw snapshot with the database', () => {
+    const file = path.join(tmp, 'career.db');
+    const dir = path.join(tmp, 'checkpoints');
+    const rawDirectory = path.join(tmp, 'raw');
+    let db = careerAt(file);
+    const archived = archiveSnapshot(db, {
+      careerId: 1,
+      directory: rawDirectory,
+      reason: 'pre_match',
+      payload: '{"opaque":"evidence"}',
+      takenAt: 900,
+      protocol: 1,
+      inGameDate: 20000,
+    });
+    const info = createCheckpoint(db, {
+      dir,
+      reason: 'pre_match',
+      careerId: 1,
+      inGameDate: 20000,
+      now: 1000,
+    });
+    db.close();
+
+    expect(info.snapshot).toMatchObject({
+      id: archived.record.id,
+      sourcePath: archived.record.raw_path,
+      checksum: archived.record.checksum,
+    });
+    expect(fs.readFileSync(info.snapshot?.path ?? '', 'utf8')).toBe('{"opaque":"evidence"}');
+    fs.rmSync(archived.record.raw_path);
+    expect(verifyCheckpoint(info)).toEqual({ ok: true });
+
+    const restored = restoreCheckpoint(info, file, { now: 2000 });
+    expect(restored.restoredSnapshot).not.toBeNull();
+    expect(fs.readFileSync(restored.restoredSnapshot ?? '', 'utf8'))
+      .toBe('{"opaque":"evidence"}');
+    db = openDatabase(file);
+    expect(db.get<{ raw_path: string }>(
+      'SELECT raw_path FROM sync_snapshots WHERE id = ?',
+      archived.record.id,
+    )?.raw_path).toBe(restored.restoredSnapshot);
+    db.close();
+
+    fs.appendFileSync(info.snapshot?.path ?? '', 'tamper');
+    expect(verifyCheckpoint(info)).toEqual({
+      ok: false,
+      problem: 'checkpoint raw snapshot has been modified since it was written',
+    });
   });
 
   it('clears stale WAL sidecars on restore', () => {

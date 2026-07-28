@@ -3,6 +3,7 @@ import type {
   CheckpointSummary,
   BridgeInstallPreview,
   BridgeInstallSummary,
+  DoctorConditionView,
   EnvironmentSummary,
   FixturePlayer,
   ManualResultCommit,
@@ -10,6 +11,7 @@ import type {
   MatchPrepState,
   PendingFixture,
   RestoreCheckpointResult,
+  SquadView,
   SyncStatus,
   TenureDesktopApi,
   VersionSurface,
@@ -32,11 +34,16 @@ const IPC_CHANNELS: IpcChannels = {
   checkpointList: 'checkpoint:list',
   checkpointRestore: 'checkpoint:restore',
   diagnosticExport: 'diagnostic:export',
+  doctorConditions: 'doctor:conditions',
+  squadGet: 'squad:get',
 };
 
 const api: TenureDesktopApi = Object.freeze({
   versions: () => ipcRenderer.invoke(IPC_CHANNELS.versions) as Promise<VersionSurface>,
   syncStatus: () => ipcRenderer.invoke(IPC_CHANNELS.syncStatus) as Promise<SyncStatus>,
+  doctorConditions: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.doctorConditions) as Promise<readonly DoctorConditionView[]>,
+  squad: () => ipcRenderer.invoke(IPC_CHANNELS.squadGet) as Promise<SquadView>,
   environment: () =>
     ipcRenderer.invoke(IPC_CHANNELS.environmentGet) as Promise<EnvironmentSummary>,
   browseForGame: () =>

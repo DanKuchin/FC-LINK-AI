@@ -29,6 +29,7 @@ export interface DoctorInput {
   readonly liveEditorFound: boolean;
   readonly compatibility: Verdict;
   readonly now: number;
+  readonly bridgeStartedAt?: number | null;
   readonly helloSeenAt?: number | null;
   readonly helloTimeoutMs?: number;
   readonly inCareer?: boolean | null;
@@ -56,21 +57,34 @@ function condition(
   };
 }
 
+function unavailable(
+  id: DoctorConditionId,
+  details: Omit<DoctorCondition, 'id' | 'state'>,
+): DoctorCondition {
+  return {
+    id,
+    state: 'warning',
+    ...details,
+  };
+}
+
 export function diagnoseSync(input: DoctorInput): DoctorCondition[] {
   const helloTimeout = input.helloTimeoutMs ?? 15_000;
-  const helloMissing = input.helloSeenAt === undefined ||
-    input.helloSeenAt === null ||
-    input.now - input.helloSeenAt > helloTimeout;
-  const wrongSave = Boolean(
-    input.expectedSaveUid &&
-    input.connectedSaveUid &&
-    input.expectedSaveUid !== input.connectedSaveUid,
-  );
-  const staleExport = input.snapshotInGameDate !== undefined &&
-    input.snapshotInGameDate !== null &&
-    input.currentInGameDate !== undefined &&
-    input.currentInGameDate !== null &&
-    input.snapshotInGameDate < input.currentInGameDate;
+  const helloMissing = input.helloSeenAt === undefined || input.helloSeenAt === null;
+  const waitingForHello = helloMissing &&
+    input.bridgeStartedAt !== undefined &&
+    input.bridgeStartedAt !== null &&
+    input.now - input.bridgeStartedAt <= helloTimeout;
+  const saveIdentityAvailable = Boolean(input.expectedSaveUid && input.connectedSaveUid);
+  const wrongSave = saveIdentityAvailable &&
+    input.expectedSaveUid !== input.connectedSaveUid;
+  const snapshotDateAvailable = input.snapshotInGameDate !== undefined &&
+    input.snapshotInGameDate !== null;
+  const currentDateAvailable = input.currentInGameDate !== undefined &&
+    input.currentInGameDate !== null;
+  const staleExport = snapshotDateAvailable &&
+    currentDateAvailable &&
+    (input.snapshotInGameDate as number) < (input.currentInGameDate as number);
 
   return [
     condition('fc_not_found', !input.fcFound, {
@@ -101,38 +115,66 @@ export function diagnoseSync(input: DoctorInput): DoctorCondition[] {
           : 'No action needed.',
       deepLink: 'tenure://sync-doctor/compatibility',
     }, input.compatibility.state === 'untested'),
-    condition('lua_not_running', helloMissing, {
-      title: 'Lua bridge connection',
-      cause: helloMissing
-        ? `No bridge hello was received within ${helloTimeout} ms.`
-        : 'The Lua bridge is connected.',
-      offer: helloMissing
-        ? 'Reinstall the bridge script and follow the exact Lua Engine run steps.'
-        : 'No action needed.',
-      deepLink: 'tenure://sync-doctor/bridge',
-    }),
-    condition('career_not_loaded', input.inCareer === false, {
-      title: 'Career mode state',
-      cause: input.inCareer === false ? 'FC reports that no career is loaded.' : 'A career is loaded.',
-      offer: input.inCareer === false ? 'Load your career in FC, then retry.' : 'No action needed.',
-      deepLink: 'tenure://sync-doctor/career',
-    }),
-    condition('wrong_save', wrongSave, {
-      title: 'Connected career identity',
-      cause: wrongSave
-        ? `Connected save ${input.connectedSaveUid ?? '(missing)'} does not match the open Tenure career.`
-        : 'The connected save matches the open Tenure career.',
-      offer: wrongSave ? 'Switch to the expected FC career or abort this connection.' : 'No action needed.',
-      deepLink: 'tenure://sync-doctor/save-identity',
-    }),
-    condition('stale_export', staleExport, {
-      title: 'Snapshot freshness',
-      cause: staleExport
-        ? 'The newest snapshot predates the current in-game date.'
-        : 'The newest snapshot is current.',
-      offer: staleExport ? 'Take a new snapshot before continuing.' : 'No action needed.',
-      deepLink: 'tenure://sync-doctor/snapshot',
-    }),
+    waitingForHello
+      ? unavailable('lua_not_running', {
+        title: 'Lua bridge connection',
+        cause: `Waiting up to ${helloTimeout} ms for the first Lua bridge hello.`,
+        offer: 'Start the Tenure bridge from Live Editor while the career is loaded.',
+        deepLink: 'tenure://sync-doctor/bridge',
+      })
+      : condition('lua_not_running', helloMissing, {
+        title: 'Lua bridge connection',
+        cause: helloMissing
+          ? `No bridge hello was received within ${helloTimeout} ms of desktop startup.`
+          : 'A Lua bridge hello was received during this desktop session.',
+        offer: helloMissing
+          ? 'Reinstall the bridge script and follow the exact Lua Engine run steps.'
+          : 'No action needed.',
+        deepLink: 'tenure://sync-doctor/bridge',
+      }),
+    input.inCareer === undefined || input.inCareer === null
+      ? unavailable('career_not_loaded', {
+        title: 'Career mode state',
+        cause: 'Career state is unavailable until the Lua bridge reports it.',
+        offer: 'Start the bridge in FC, then re-test this condition.',
+        deepLink: 'tenure://sync-doctor/career',
+      })
+      : condition('career_not_loaded', input.inCareer === false, {
+        title: 'Career mode state',
+        cause: input.inCareer === false ? 'FC reports that no career is loaded.' : 'A career is loaded.',
+        offer: input.inCareer === false ? 'Load your career in FC, then retry.' : 'No action needed.',
+        deepLink: 'tenure://sync-doctor/career',
+      }),
+    saveIdentityAvailable
+      ? condition('wrong_save', wrongSave, {
+        title: 'Connected career identity',
+        cause: wrongSave
+          ? `Connected save ${input.connectedSaveUid ?? '(missing)'} does not match the open Tenure career.`
+          : 'The connected save matches the open Tenure career.',
+        offer: wrongSave ? 'Switch to the expected FC career or abort this connection.' : 'No action needed.',
+        deepLink: 'tenure://sync-doctor/save-identity',
+      })
+      : unavailable('wrong_save', {
+        title: 'Connected career identity',
+        cause: 'Both an open Tenure career and a connected FC save are required for identity comparison.',
+        offer: 'Open the companion career and connect the Lua bridge before continuing.',
+        deepLink: 'tenure://sync-doctor/save-identity',
+      }),
+    snapshotDateAvailable && currentDateAvailable
+      ? condition('stale_export', staleExport, {
+        title: 'Snapshot freshness',
+        cause: staleExport
+          ? 'The newest snapshot predates the current in-game date.'
+          : 'The newest snapshot is current.',
+        offer: staleExport ? 'Take a new snapshot before continuing.' : 'No action needed.',
+        deepLink: 'tenure://sync-doctor/snapshot',
+      })
+      : unavailable('stale_export', {
+        title: 'Snapshot freshness',
+        cause: 'No retained snapshot and career date are available for comparison.',
+        offer: 'Open a career and take a new snapshot before relying on imported data.',
+        deepLink: 'tenure://sync-doctor/snapshot',
+      }),
     condition('permission_or_av_block', Boolean(input.bridgeAccessError), {
       title: 'Local bridge access',
       cause: input.bridgeAccessError ?? 'No file, permission, port, or antivirus error is active.',
@@ -141,49 +183,77 @@ export function diagnoseSync(input: DoctorInput): DoctorCondition[] {
         : 'No action needed.',
       deepLink: 'tenure://sync-doctor/local-access',
     }),
-    condition('entity_mapping_conflict', (input.mappingConflicts ?? 0) > 0, {
+    input.mappingConflicts === undefined
+      ? unavailable('entity_mapping_conflict', {
+        title: 'Entity mappings',
+        cause: 'Entity mapping state is unavailable because no active career database is open.',
+        offer: 'Open a Tenure career before reviewing mapping conflicts.',
+        deepLink: 'tenure://sync-doctor/mappings',
+      })
+      : condition('entity_mapping_conflict', input.mappingConflicts > 0, {
       title: 'Entity mappings',
-      cause: (input.mappingConflicts ?? 0) > 0
-        ? `${input.mappingConflicts ?? 0} entity mapping conflict(s) need review.`
+      cause: input.mappingConflicts > 0
+        ? `${input.mappingConflicts} entity mapping conflict(s) need review.`
         : 'No entity mapping conflicts are open.',
-      offer: (input.mappingConflicts ?? 0) > 0
+      offer: input.mappingConflicts > 0
         ? 'Review and resolve each ambiguous mapping individually.'
         : 'No action needed.',
       deepLink: 'tenure://sync-doctor/mappings',
-      count: input.mappingConflicts ?? 0,
+      count: input.mappingConflicts,
     }),
-    condition('failed_write', (input.failedWrites ?? 0) > 0, {
+    input.failedWrites === undefined
+      ? unavailable('failed_write', {
+        title: 'Failed writes',
+        cause: 'Write history is unavailable because no active career database is open.',
+        offer: 'Open a Tenure career before reviewing write failures.',
+        deepLink: 'tenure://sync-doctor/writes/failed',
+      })
+      : condition('failed_write', input.failedWrites > 0, {
       title: 'Failed writes',
-      cause: (input.failedWrites ?? 0) > 0
-        ? `${input.failedWrites ?? 0} write operation(s) failed or did not read back correctly.`
+      cause: input.failedWrites > 0
+        ? `${input.failedWrites} write operation(s) failed or did not read back correctly.`
         : 'No write operations have failed.',
-      offer: (input.failedWrites ?? 0) > 0
+      offer: input.failedWrites > 0
         ? 'Retry, abandon, or restore the named pre-write checkpoint.'
         : 'No action needed.',
       deepLink: 'tenure://sync-doctor/writes/failed',
-      count: input.failedWrites ?? 0,
+      count: input.failedWrites,
     }),
-    condition('missing_acknowledgement', (input.sentWithoutAck ?? 0) > 0, {
+    input.sentWithoutAck === undefined
+      ? unavailable('missing_acknowledgement', {
+        title: 'Missing acknowledgements',
+        cause: 'Acknowledgement history is unavailable because no active career database is open.',
+        offer: 'Open a Tenure career before reviewing pending acknowledgements.',
+        deepLink: 'tenure://sync-doctor/writes/unacknowledged',
+      })
+      : condition('missing_acknowledgement', input.sentWithoutAck > 0, {
       title: 'Missing acknowledgements',
-      cause: (input.sentWithoutAck ?? 0) > 0
-        ? `${input.sentWithoutAck ?? 0} sent operation(s) have no acknowledgement.`
+      cause: input.sentWithoutAck > 0
+        ? `${input.sentWithoutAck} sent operation(s) have no acknowledgement.`
         : 'Every sent operation has an acknowledgement or remains inside its timeout.',
-      offer: (input.sentWithoutAck ?? 0) > 0
+      offer: input.sentWithoutAck > 0
         ? 'Keep the instruction pending and verify its observed value on the next load.'
         : 'No action needed.',
       deepLink: 'tenure://sync-doctor/writes/unacknowledged',
-      count: input.sentWithoutAck ?? 0,
+      count: input.sentWithoutAck,
     }),
-    condition('corrupted_snapshot', (input.corruptedSnapshots ?? 0) > 0, {
+    input.corruptedSnapshots === undefined
+      ? unavailable('corrupted_snapshot', {
+        title: 'Snapshot integrity',
+        cause: 'Snapshot integrity is unavailable because no active career database is open.',
+        offer: 'Open a Tenure career before relying on retained snapshot evidence.',
+        deepLink: 'tenure://sync-doctor/snapshots/corrupt',
+      })
+      : condition('corrupted_snapshot', input.corruptedSnapshots > 0, {
       title: 'Snapshot integrity',
-      cause: (input.corruptedSnapshots ?? 0) > 0
-        ? `${input.corruptedSnapshots ?? 0} snapshot(s) failed checksum verification.`
+      cause: input.corruptedSnapshots > 0
+        ? `${input.corruptedSnapshots} snapshot(s) failed checksum verification.`
         : 'All retained snapshots pass checksum verification.',
-      offer: (input.corruptedSnapshots ?? 0) > 0
+      offer: input.corruptedSnapshots > 0
         ? 'Discard the corrupt snapshot and take a new one; never import it.'
         : 'No action needed.',
       deepLink: 'tenure://sync-doctor/snapshots/corrupt',
-      count: input.corruptedSnapshots ?? 0,
+      count: input.corruptedSnapshots,
     }),
   ];
 }

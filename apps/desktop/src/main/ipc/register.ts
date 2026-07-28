@@ -5,6 +5,7 @@ import {
   type BridgeInstallPreview,
   type BridgeInstallSummary,
   type CheckpointSummary,
+  type DoctorConditionView,
   type EnvironmentSummary,
   type FixturePlayer,
   type ManualResultCommit,
@@ -13,6 +14,7 @@ import {
   type MatchPrepState,
   type PendingFixture,
   type RestoreCheckpointResult,
+  type SquadView,
   type SyncStatus,
   type VersionSurface,
 } from '../../shared/ipc.js';
@@ -20,6 +22,8 @@ import {
 export interface DesktopServices {
   readonly sqliteAvailable: boolean;
   readonly syncStatus: () => SyncStatus;
+  readonly doctorConditions: () => readonly DoctorConditionView[];
+  readonly squad: () => SquadView;
   readonly environment: () => EnvironmentSummary;
   readonly setManualGamePath: (selectedPath: string) => EnvironmentSummary;
   readonly setManualLiveEditorPath: (selectedPath: string) => EnvironmentSummary;
@@ -97,6 +101,8 @@ export function registerIpc(services: DesktopServices): void {
     sqliteAvailable: services.sqliteAvailable,
   }));
   ipcMain.handle(IPC_CHANNELS.syncStatus, () => services.syncStatus());
+  ipcMain.handle(IPC_CHANNELS.doctorConditions, () => services.doctorConditions());
+  ipcMain.handle(IPC_CHANNELS.squadGet, () => services.squad());
   ipcMain.handle(IPC_CHANNELS.environmentGet, () => services.environment());
   ipcMain.handle(IPC_CHANNELS.environmentBrowseGame, async () => {
     const selection = await dialog.showOpenDialog({

@@ -6,6 +6,14 @@
 
 Read this file first. It is the map, the reasoning that didn't fit in the docs, and the list of things not to do.
 
+> **Continuation note (2026-07-28):** Sections 1–2 below describe the original
+> baseline on `main`, not the current `codex/phase-0-2` branch. That branch now
+> contains the Electron application and the schema-independent Phase 0–2
+> foundation. Read [`docs/09-phase-0-2-implementation-audit.md`](docs/09-phase-0-2-implementation-audit.md)
+> immediately after this file for the current evidence and remaining gates. The
+> Phase 0 Windows/FC evidence blocker and every “do not build” boundary in this
+> handoff remain authoritative.
+
 ---
 
 ## 1. What this is in one paragraph

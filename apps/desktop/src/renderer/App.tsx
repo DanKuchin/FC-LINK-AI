@@ -2,23 +2,94 @@ import { useEffect, useState } from 'react';
 import type {
   BridgeInstallPreview,
   CheckpointSummary,
+  DoctorConditionView,
   EnvironmentSummary,
   FixturePlayer,
   ManualResultPlayerLine,
   MatchPrepState,
   PendingFixture,
+  SquadPlayerView,
+  SquadView,
   SyncStatus,
   VersionSurface,
 } from '../shared/ipc.js';
 
 type Screen = 'squad' | 'prepare' | 'result' | 'doctor';
 
-const sampleSquad = [
-  ['M. Hale', 'GK', '29', '78–81', '100', 'Calm', '2028'],
-  ['J. Okafor', 'CB', '24', '75–79', '92', 'Good', '2029'],
-  ['R. Santos', 'CM', '21', '71–80', '86', 'Rising', '2027'],
-  ['A. Mercer', 'ST', '27', '80–82', '74', 'Strong', '2028'],
-] as const;
+const sampleSquad: readonly SquadPlayerView[] = [
+  {
+    id: -1,
+    name: 'M. Hale',
+    position: 'GK',
+    age: 29,
+    abilityLow: 78,
+    abilityHigh: 81,
+    potentialLow: 78,
+    potentialHigh: 82,
+    fitness: 100,
+    form: 61,
+    morale: 72,
+    contractEnd: Math.floor(Date.UTC(2028, 5, 30) / 86_400_000),
+    squadRole: 'important',
+    wage: null,
+    wageEstimated: false,
+    personality: null,
+  },
+  {
+    id: -2,
+    name: 'J. Okafor',
+    position: 'CB',
+    age: 24,
+    abilityLow: 75,
+    abilityHigh: 79,
+    potentialLow: 80,
+    potentialHigh: 85,
+    fitness: 92,
+    form: 68,
+    morale: 75,
+    contractEnd: Math.floor(Date.UTC(2029, 5, 30) / 86_400_000),
+    squadRole: 'rotation',
+    wage: null,
+    wageEstimated: false,
+    personality: null,
+  },
+  {
+    id: -3,
+    name: 'R. Santos',
+    position: 'CM',
+    age: 21,
+    abilityLow: 71,
+    abilityHigh: 80,
+    potentialLow: 82,
+    potentialHigh: 89,
+    fitness: 86,
+    form: 73,
+    morale: 81,
+    contractEnd: Math.floor(Date.UTC(2027, 5, 30) / 86_400_000),
+    squadRole: 'prospect',
+    wage: null,
+    wageEstimated: false,
+    personality: null,
+  },
+  {
+    id: -4,
+    name: 'A. Mercer',
+    position: 'ST',
+    age: 27,
+    abilityLow: 80,
+    abilityHigh: 82,
+    potentialLow: 80,
+    potentialHigh: 83,
+    fitness: 74,
+    form: 78,
+    morale: 66,
+    contractEnd: Math.floor(Date.UTC(2028, 5, 30) / 86_400_000),
+    squadRole: 'crucial',
+    wage: null,
+    wageEstimated: false,
+    personality: null,
+  },
+];
 
 export function App() {
   const [screen, setScreen] = useState<Screen>('squad');
@@ -26,6 +97,8 @@ export function App() {
   const [checkpoints, setCheckpoints] = useState<readonly CheckpointSummary[]>([]);
   const [environment, setEnvironment] = useState<EnvironmentSummary | null>(null);
   const [bridgePreview, setBridgePreview] = useState<BridgeInstallPreview | null>(null);
+  const [doctorConditions, setDoctorConditions] = useState<readonly DoctorConditionView[]>([]);
+  const [squad, setSquad] = useState<SquadView | null>(null);
   const [recoveryMessage, setRecoveryMessage] = useState('');
   const [sync, setSync] = useState<SyncStatus>({
     state: 'offline',
@@ -34,11 +107,23 @@ export function App() {
     writesEnabled: false,
   });
 
+  const refreshSync = async () => {
+    const [status, conditions] = await Promise.all([
+      window.tenure.syncStatus(),
+      window.tenure.doctorConditions(),
+    ]);
+    setSync(status);
+    setDoctorConditions(conditions);
+  };
+
   useEffect(() => {
     void window.tenure.versions().then(setVersions);
-    void window.tenure.syncStatus().then(setSync);
+    void refreshSync();
     void window.tenure.environment().then(setEnvironment);
+    void window.tenure.squad().then(setSquad);
     void window.tenure.listCheckpoints().then(setCheckpoints);
+    const refreshTimer = globalThis.setInterval(() => void refreshSync(), 3_000);
+    return () => globalThis.clearInterval(refreshTimer);
   }, []);
 
   const restore = async (checkpointId: string) => {
@@ -47,6 +132,7 @@ export function App() {
       if (!result.restored) return;
       setRecoveryMessage(`Restored checkpoint. Safety copy: ${result.safetyCopyPath}`);
       setCheckpoints(await window.tenure.listCheckpoints());
+      setSquad(await window.tenure.squad());
     } catch (error) {
       setRecoveryMessage(`Restore failed: ${(error as Error).message}`);
     }
@@ -70,7 +156,7 @@ export function App() {
       ? await window.tenure.browseForGame()
       : await window.tenure.browseForLiveEditor();
     setEnvironment(detected);
-    setSync(await window.tenure.syncStatus());
+    await refreshSync();
     setBridgePreview(null);
   };
 
@@ -120,12 +206,13 @@ export function App() {
         <button className={`sync-strip ${sync.state}`} onClick={() => setScreen('doctor')}>
           <strong>{sync.label}</strong><span>{sync.detail}</span>
         </button>
-        {screen === 'squad' && <Squad />}
+        {screen === 'squad' && <Squad data={squad} />}
         {screen === 'prepare' && <MatchPrep onCheckpoint={refreshCheckpoints} />}
         {screen === 'result' && <Result onCommitted={refreshCheckpoints} />}
         {screen === 'doctor' && (
           <Doctor
             sync={sync}
+            conditions={doctorConditions}
             versions={versions}
             environment={environment}
             bridgePreview={bridgePreview}
@@ -136,6 +223,7 @@ export function App() {
             onBrowse={browse}
             onPreviewBridge={previewBridge}
             onInstallBridge={installBridge}
+            onRetest={refreshSync}
           />
         )}
       </main>
@@ -203,21 +291,154 @@ function MatchPrep({ onCheckpoint }: { readonly onCheckpoint: () => Promise<void
   );
 }
 
-function Squad() {
+type SquadSortKey = 'name' | 'position' | 'age' | 'ability' | 'fitness' | 'contract';
+type Density = 'comfortable' | 'compact' | 'dense';
+
+function range(low: number | null, high: number | null): string {
+  if (low === null || high === null) return '—';
+  return low === high ? String(low) : `${low}–${high}`;
+}
+
+function contractYear(day: number | null): string {
+  if (day === null) return '—';
+  return String(new Date(day * 86_400_000).getUTCFullYear());
+}
+
+function sortValue(player: SquadPlayerView, key: SquadSortKey): string | number {
+  if (key === 'name') return player.name;
+  if (key === 'position') return player.position;
+  if (key === 'age') return player.age;
+  if (key === 'ability') return player.abilityLow ?? -1;
+  if (key === 'fitness') return player.fitness ?? -1;
+  return player.contractEnd ?? Number.MAX_SAFE_INTEGER;
+}
+
+function Squad({ data }: { readonly data: SquadView | null }) {
+  const [sortKey, setSortKey] = useState<SquadSortKey>('position');
+  const [ascending, setAscending] = useState(true);
+  const [density, setDensity] = useState<Density>('comfortable');
+  const players = data?.source === 'career' ? data.players : sampleSquad;
+  const [selectedId, setSelectedId] = useState(players[0]?.id ?? null);
+  const selected = players.find((player) => player.id === selectedId) ?? players[0] ?? null;
+  const sorted = [...players].sort((left, right) => {
+    const a = sortValue(left, sortKey);
+    const b = sortValue(right, sortKey);
+    const order = typeof a === 'string' && typeof b === 'string'
+      ? a.localeCompare(b)
+      : Number(a) - Number(b);
+    return ascending ? order : -order;
+  });
+
+  const chooseSort = (key: SquadSortKey) => {
+    if (sortKey === key) setAscending((current) => !current);
+    else {
+      setSortKey(key);
+      setAscending(true);
+    }
+  };
+  const heading = (key: SquadSortKey, label: string) => (
+    <th aria-sort={sortKey === key ? (ascending ? 'ascending' : 'descending') : 'none'}>
+      <button onClick={() => chooseSort(key)}>{label}</button>
+    </th>
+  );
+
   return (
-    <section className="paper">
+    <section className="paper" data-density={density}>
       <header>
-        <p className="eyebrow">First team · as of schema fixture</p>
+        <p className="eyebrow">
+          {data?.source === 'career'
+            ? `${data.clubName ?? 'Managed club'} · career day ${data.currentDate ?? 'unknown'}`
+            : 'First team · presentation fixture'}
+        </p>
         <h1>Squad register</h1>
         <p className="lede">Ranges remain ranges until scouting or FC provides reliable evidence.</p>
       </header>
-      <div className="notice">Sample presentation data — live import is intentionally locked pending the Phase 0 schema dump.</div>
-      <table>
-        <thead><tr><th>Player</th><th>Pos</th><th>Age</th><th>Ability</th><th>Fitness</th><th>Form</th><th>Contract</th></tr></thead>
-        <tbody>{sampleSquad.map((row) => (
-          <tr key={row[0]}>{row.map((cell, index) => <td key={cell} className={index > 1 ? 'number' : ''}>{cell}</td>)}</tr>
-        ))}</tbody>
-      </table>
+      {data?.source !== 'career' ? (
+        <div className="notice">
+          Sample presentation data — the internal career adapter is ready, while live FC import
+          remains locked pending the Phase 0 schema dump.
+        </div>
+      ) : null}
+      <div className="squad-toolbar">
+        <span>{players.length} active player{players.length === 1 ? '' : 's'}</span>
+        <label>
+          Density
+          <select value={density} onChange={(event) => setDensity(event.target.value as Density)}>
+            <option value="comfortable">Comfortable</option>
+            <option value="compact">Compact</option>
+            <option value="dense">Dense</option>
+          </select>
+        </label>
+      </div>
+      <div className="squad-layout">
+        <div className="squad-table">
+          <table>
+            <caption className="sr-only">Managed first-team squad</caption>
+            <thead>
+              <tr>
+                {heading('name', 'Player')}
+                {heading('position', 'Pos')}
+                {heading('age', 'Age')}
+                {heading('ability', 'Ability')}
+                {heading('fitness', 'Fitness')}
+                <th>Form</th>
+                {heading('contract', 'Contract')}
+              </tr>
+            </thead>
+            <tbody>{sorted.map((player) => (
+              <tr key={player.id} className={selected?.id === player.id ? 'selected' : ''}>
+                <td>
+                  <button
+                    className="player-link"
+                    aria-pressed={selected?.id === player.id}
+                    onClick={() => setSelectedId(player.id)}
+                  >
+                    {player.name}
+                  </button>
+                </td>
+                <td>{player.position}</td>
+                <td className="number">{player.age}</td>
+                <td className="number">{range(player.abilityLow, player.abilityHigh)}</td>
+                <td className="number">{player.fitness ?? '—'}</td>
+                <td className="number">{player.form ?? '—'}</td>
+                <td className="number">{contractYear(player.contractEnd)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+        <aside className="player-profile" aria-live="polite">
+          {selected === null ? <p>No player is available.</p> : (
+            <>
+              <p className="eyebrow">Player profile</p>
+              <h2>{selected.name}</h2>
+              <p>{selected.position} · age {selected.age}</p>
+              <dl>
+                <div><dt>Ability</dt><dd>{range(selected.abilityLow, selected.abilityHigh)}</dd></div>
+                <div><dt>Potential</dt><dd>{range(selected.potentialLow, selected.potentialHigh)}</dd></div>
+                <div><dt>Fitness</dt><dd>{selected.fitness ?? 'Unknown'}</dd></div>
+                <div><dt>Morale</dt><dd>{selected.morale ?? 'Unknown'}</dd></div>
+                <div><dt>Role</dt><dd>{selected.squadRole ?? 'Unrecorded'}</dd></div>
+                <div><dt>Contract</dt><dd>{contractYear(selected.contractEnd)}</dd></div>
+              </dl>
+              <h3>Personality</h3>
+              {selected.personality === null ? (
+                <p className="empty">Not generated for this player yet.</p>
+              ) : (
+                <dl>
+                  {Object.entries(selected.personality)
+                    .filter(([trait]) => trait !== 'seed')
+                    .map(([trait, value]) => (
+                      <div key={trait}>
+                        <dt>{trait.replace('_', ' ')}</dt>
+                        <dd className="number">{value}</dd>
+                      </div>
+                    ))}
+                </dl>
+              )}
+            </>
+          )}
+        </aside>
+      </div>
     </section>
   );
 }
@@ -383,6 +604,7 @@ function Result({ onCommitted }: { readonly onCommitted: () => Promise<void> }) 
 
 interface DoctorProps {
   readonly sync: SyncStatus;
+  readonly conditions: readonly DoctorConditionView[];
   readonly versions: VersionSurface | null;
   readonly environment: EnvironmentSummary | null;
   readonly bridgePreview: BridgeInstallPreview | null;
@@ -393,10 +615,12 @@ interface DoctorProps {
   readonly onBrowse: (kind: 'game' | 'liveEditor') => Promise<void>;
   readonly onPreviewBridge: () => Promise<void>;
   readonly onInstallBridge: (allowUserModified: boolean) => Promise<void>;
+  readonly onRetest: () => Promise<void>;
 }
 
 function Doctor({
   sync,
+  conditions,
   versions,
   environment,
   bridgePreview,
@@ -407,25 +631,39 @@ function Doctor({
   onBrowse,
   onPreviewBridge,
   onInstallBridge,
+  onRetest,
 }: DoctorProps) {
-  const checks = [
-    ['Desktop shell', 'ok', 'Typed preload boundary active'],
-    ['SQLite runtime', versions?.sqliteAvailable ? 'ok' : 'error', versions?.sqliteAvailable ? 'node:sqlite available' : 'Bundled runtime lacks node:sqlite'],
-    ['FC + Live Editor', 'warning', sync.detail],
-    ['Career schema', 'warning', 'Real schema fixture has not been recorded'],
-    ['Writes', 'ok', 'Disabled by policy through Phase 2'],
-  ] as const;
   return (
     <section className="paper">
       <header>
-        <p className="eyebrow">Recovery and support</p>
-        <h1>Sync Doctor</h1>
-        <p className="lede">Every blocked path names its cause and leaves the career playable.</p>
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Recovery and support</p>
+            <h1>Sync Doctor</h1>
+          </div>
+          <button className="secondary" onClick={() => void onRetest()}>Re-test all</button>
+        </div>
+        <p className="lede">
+          Twelve live checks read the desktop environment, Lua hello, active career,
+          snapshots, mappings, and write history. Unknown evidence is never shown as healthy.
+        </p>
       </header>
-      <div className="checks">{checks.map(([name, state, detail]) => (
-        <article key={name} className={`check ${state}`}>
-          <span className="state-mark" aria-label={state}>{state === 'ok' ? '✓' : state === 'warning' ? '!' : '×'}</span>
-          <div><strong>{name}</strong><p>{detail}</p></div>
+      <div className="checks">
+        {conditions.length === 0 ? <p className="empty">Running live checks…</p> : null}
+        {conditions.map((condition) => (
+        <article
+          key={condition.id}
+          id={`doctor-${condition.id}`}
+          className={`check ${condition.state}`}
+        >
+          <span className="state-mark" aria-label={condition.state}>
+            {condition.state === 'ok' ? '✓' : condition.state === 'warning' ? '!' : '×'}
+          </span>
+          <div>
+            <strong>{condition.title}</strong>
+            <p>{condition.cause}</p>
+            {condition.state !== 'ok' ? <p className="offer">{condition.offer}</p> : null}
+          </div>
         </article>
       ))}</div>
       <div className="versions">
@@ -433,6 +671,7 @@ function Doctor({
         <span>save schema {versions?.saveSchema ?? '…'}</span>
         <span>bridge {versions?.bridgeProtocol ?? '…'}</span>
         <span>manifest {versions?.compatibilityManifest ?? '…'}</span>
+        <span>writes {sync.writesEnabled ? 'enabled' : 'disabled'}</span>
       </div>
       <section className="environment">
         <div className="section-heading">

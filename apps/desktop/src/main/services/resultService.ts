@@ -107,6 +107,7 @@ export class ResultService {
       const preMatch = listCheckpoints(this.options.checkpointDirectory).find((checkpoint) =>
         checkpoint.reason === 'pre_match' &&
         checkpoint.careerId === fixture.career_id &&
+        checkpoint.inGameDate === fixture.current_date &&
         verifyCheckpoint(checkpoint).ok);
       if (preMatch === undefined) {
         throw new Error(

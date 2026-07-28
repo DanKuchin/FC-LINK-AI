@@ -24,8 +24,8 @@ database.
 | Check | Result |
 |---|---|
 | `pnpm build` | pass; renderer, Electron main and CommonJS preload built |
-| `pnpm check` | pass; 23 files, 159 tests |
-| Electron cold-boot smoke | pass; renderer + preload + typed IPC + Electron `node:sqlite` |
+| `pnpm check` | pass; 25 files, 169 tests |
+| Electron cold-boot smoke | pass; renderer + preload + typed IPC + Electron `node:sqlite` + live Doctor + Squad trust surface |
 | Process killed mid-day transaction | pass; prior day restored, SQLite integrity clean |
 | Migration corpus | pass; schema v1 opens at v3 with career row preserved |
 | Sync Doctor | pass; all 12 conditions in doc 08 A5 exercised |
@@ -49,6 +49,8 @@ The implementation and tests use all 12 rows, including corrupted snapshots.
 - Chunked snapshot protocol with duplicate, ordering, size, and checksum protection.
 - Opaque raw snapshot archive with database metadata and checksum verification.
 - Mock FC replay bridge for fast loopback integration tests.
+- Electron-owned production bridge lifecycle with handshake cleanup, bounded
+  request/log capture, matching-save enforcement, and opaque snapshot archival.
 
 ### Live gate — pending on Windows
 
@@ -72,12 +74,12 @@ machine. Never arm the write probe against a career that matters.
 | Electron shell | implemented | production build and self-terminating cold-boot smoke pass |
 | Typed IPC boundary | implemented | sandbox + context isolation; renderer boundary test |
 | SQLite + migrations | implemented | Electron runtime check plus persistence suite |
-| Checkpoint/restore core | implemented | checksum, integrity check, safety copy, retention tests |
+| Checkpoint/restore core | implemented | database + latest raw snapshot, checksums, integrity check, safety copy, retention tests |
 | FC + Live Editor detection | implemented locally | registry, known-path, manifest and manual-path fixture tests; live Windows validation pending |
 | Bridge installer | implemented locally | diff preview, SHA-256 verification, tamper conflict and explicit overwrite consent |
 | Personality generation | implemented | five independently seeded fact-driven traits, explanations and population-direction tests |
 | Pre-match launch gate | implemented | verified checkpoint mandatory; current snapshot or explicit manual-mode choice |
-| Squad screen | presentation shell | clearly labelled sample data; live data waits for schema |
+| Squad + player profile | internal career adapter implemented | sortable, three densities, ranges, contract/condition/personality evidence; FC population waits for schema |
 | Result confirmation screen | manual path implemented | full score/player-line form, explicit confirmation, `user_entered` provenance and causal event |
 | Import pipeline | blocked correctly | requires recorded real schema |
 | Snapshot diffing | blocked correctly | requires recorded before/after fixtures |
@@ -92,11 +94,11 @@ does not present the shell as a working import.
 |---|---|---|
 | Full club/player import | blocked correctly | requires real schema fixture |
 | Migration framework + old-save test | implemented | shipped v1 → v3 migration preserves the career |
-| Backup/restore | implemented | verified list, confirmation, atomic restore, safety copy and restore-history UI workflow |
-| Sync Doctor v1 | core implemented, shell present | 12 failure classes, recovery offers and deep links |
+| Backup/restore | implemented | database + raw-evidence bundle, verified list, confirmation, atomic restore, safety copy and restore-history UI workflow |
+| Sync Doctor v1 | implemented locally | 12 live conditions derived from environment, Lua hello, career, snapshots and queue; recovery offers and deep links |
 | Idempotent write queue | implemented, not enabled | stable keys, max-10 batches, attempts, ack/read-back/durability states |
 | Compatibility manifest | implemented | supported/untested/unsupported policy; nothing marked verified |
-| Diagnostic bundle | implemented | standard ZIP, atomic mode 0600, bounded logs, credential/save-ID redaction |
+| Diagnostic bundle | implemented | live Doctor state + bounded bridge logs, standard ZIP, atomic mode 0600, credential/save-ID redaction, run history |
 | Killed-process durability exit | implemented | real child process killed inside an open day transaction |
 
 ## Audit findings corrected in this patch
@@ -133,6 +135,33 @@ does not present the shell as a working import.
 11. Ticket 17's five hidden traits were absent. Personality generation now uses
     independent deterministic streams and visible age, potential-gap, reputation,
     and contract signals, with an explanation for every value.
+12. The tested loopback bridge server was never started by Electron, so the
+    production Lua script could not connect to the desktop. Electron now owns
+    its lifecycle, writes/removes the private handshake, records bounded logs,
+    rejects wrong-save snapshots, and archives matching opaque evidence.
+13. The Sync Doctor renderer showed five hard-coded presentation rows while the
+    twelve-condition engine and diagnostic ZIP received no live state. Both now
+    consume the same current evidence; unavailable evidence is amber instead of
+    falsely healthy, and exported bundles include the redacted bridge history.
+14. Manual result confirmation accepted a verified pre-match checkpoint from
+    any career day. It now requires the checkpoint to match the fixture career's
+    current day.
+15. The Squad screen was a fixed four-row table. It now reads the internal
+    managed squad through typed IPC, preserves unknown ranges, sorts every key
+    column, supports three density settings, and exposes a keyboard-operable
+    player profile. Sample data remains explicitly labelled when no career exists.
+16. Checkpoints copied only SQLite even though the architecture requires the
+    latest raw snapshot too. New checkpoints now bundle and verify that evidence;
+    restore writes a unique snapshot copy and updates the staged database before
+    the atomic replacement. Legacy database-only manifests remain readable.
+17. The production Lua hello uses `game_build: "detected_by_host"` by design.
+    Treating that sentinel as a literal build made every real connection look
+    unsupported. Compatibility and archived metadata now use the desktop's
+    manifest-derived FC build for that exact payload.
+18. The Doctor expired a successful hello after 15 seconds even though the
+    shipped Lua bridge has no heartbeat contract. It now shows an initial grace
+    warning, fails only when no hello arrives, and retains session evidence once
+    a real hello has been received.
 
 ## Remaining critical path
 
@@ -141,7 +170,6 @@ does not present the shell as a working import.
 3. Implement mapping/import only against that fixture.
 4. Record pre/post snapshots for a played match, implement the diff, and feed its
    normalized output through the now-shared confirmation transaction.
-5. Wire imported career services into Squad, then feed live bridge logs and
-   Doctor conditions into diagnostics.
+5. Populate the implemented Squad/player-profile adapter from the real import.
 6. Repeat the real-match flow twice from a cold start.
 7. Re-run this audit; only then mark Phases 0–2 complete.

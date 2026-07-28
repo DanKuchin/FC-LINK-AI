@@ -56,6 +56,14 @@ export interface CheckpointInfo {
   readonly checksum: string;
   readonly dbPath: string;
   readonly manifestPath: string;
+  /** Missing only on checkpoints created before snapshot bundling was introduced. */
+  readonly snapshot?: {
+    readonly id: number;
+    readonly path: string;
+    readonly sourcePath: string;
+    readonly bytes: number;
+    readonly checksum: string;
+  } | null;
 }
 
 export interface CreateCheckpointOptions {
@@ -86,6 +94,34 @@ function readSchemaVersion(db: Db): number {
   }
 }
 
+function latestRawSnapshot(
+  db: Db,
+  careerId: number | null | undefined,
+): { readonly id: number; readonly raw_path: string; readonly checksum: string } | null {
+  if (careerId === undefined || careerId === null) return null;
+  try {
+    return db.get<{
+      id: number;
+      raw_path: string;
+      checksum: string;
+    }>(
+      `SELECT id, raw_path, checksum
+       FROM sync_snapshots
+       WHERE career_id = ?
+       ORDER BY taken_at DESC, id DESC
+       LIMIT 1`,
+      careerId,
+    ) ?? null;
+  } catch {
+    // A pre-migration checkpoint may be taken before sync_snapshots exists.
+    return null;
+  }
+}
+
+function snapshotDigest(file: string): string {
+  return `sha256:${sha256File(file)}`;
+}
+
 /**
  * Takes a checkpoint of the open database.
  *
@@ -103,29 +139,58 @@ export function createCheckpoint(db: Db, options: CreateCheckpointOptions): Chec
   fs.mkdirSync(options.dir, { recursive: true });
   const dbPath = path.join(options.dir, `${id}.db`);
   const manifestPath = path.join(options.dir, `${id}.json`);
+  const snapshotPath = path.join(options.dir, `${id}.snapshot`);
+  const rawSnapshot = latestRawSnapshot(db, options.careerId);
 
-  // Single quotes are the SQL string delimiter; doubling escapes them.
-  db.exec(`VACUUM INTO '${dbPath.replace(/'/g, "''")}'`);
+  try {
+    // Single quotes are the SQL string delimiter; doubling escapes them.
+    db.exec(`VACUUM INTO '${dbPath.replace(/'/g, "''")}'`);
+    let snapshot: CheckpointInfo['snapshot'] = null;
+    if (rawSnapshot !== null) {
+      if (!fs.existsSync(rawSnapshot.raw_path)) {
+        throw new Error(`Cannot checkpoint missing raw snapshot ${rawSnapshot.raw_path}`);
+      }
+      const actual = snapshotDigest(rawSnapshot.raw_path);
+      if (actual !== rawSnapshot.checksum) {
+        throw new Error(
+          `Cannot checkpoint raw snapshot ${rawSnapshot.id}: checksum mismatch`,
+        );
+      }
+      fs.copyFileSync(rawSnapshot.raw_path, snapshotPath);
+      snapshot = {
+        id: rawSnapshot.id,
+        path: snapshotPath,
+        sourcePath: rawSnapshot.raw_path,
+        bytes: fs.statSync(snapshotPath).size,
+        checksum: actual,
+      };
+    }
 
-  const info: CheckpointInfo = {
-    id,
-    reason: options.reason,
-    label,
-    createdAt: now,
-    schemaVersion: readSchemaVersion(db),
-    careerId: options.careerId ?? null,
-    inGameDate: options.inGameDate ?? null,
-    bytes: fs.statSync(dbPath).size,
-    checksum: sha256File(dbPath),
-    dbPath,
-    manifestPath,
-  };
+    const info: CheckpointInfo = {
+      id,
+      reason: options.reason,
+      label,
+      createdAt: now,
+      schemaVersion: readSchemaVersion(db),
+      careerId: options.careerId ?? null,
+      inGameDate: options.inGameDate ?? null,
+      bytes: fs.statSync(dbPath).size,
+      checksum: sha256File(dbPath),
+      dbPath,
+      manifestPath,
+      snapshot,
+    };
 
-  const tmp = `${manifestPath}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(info, null, 2));
-  fs.renameSync(tmp, manifestPath);
-
-  return info;
+    const tmp = `${manifestPath}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(info, null, 2));
+    fs.renameSync(tmp, manifestPath);
+    return info;
+  } catch (error) {
+    fs.rmSync(dbPath, { force: true });
+    fs.rmSync(snapshotPath, { force: true });
+    fs.rmSync(`${manifestPath}.tmp`, { force: true });
+    throw error;
+  }
 }
 
 export function listCheckpoints(dir: string): CheckpointInfo[] {
@@ -151,6 +216,17 @@ export function verifyCheckpoint(info: CheckpointInfo): VerifyResult {
   if (sha256File(info.dbPath) !== info.checksum) {
     return { ok: false, problem: 'checkpoint file has been modified since it was written' };
   }
+  if (info.snapshot !== undefined && info.snapshot !== null) {
+    if (!fs.existsSync(info.snapshot.path)) {
+      return { ok: false, problem: 'checkpoint raw snapshot is missing' };
+    }
+    if (snapshotDigest(info.snapshot.path) !== info.snapshot.checksum) {
+      return {
+        ok: false,
+        problem: 'checkpoint raw snapshot has been modified since it was written',
+      };
+    }
+  }
   let db: Db | undefined;
   try {
     db = openDatabase(info.dbPath, { wal: false });
@@ -166,6 +242,7 @@ export function verifyCheckpoint(info: CheckpointInfo): VerifyResult {
 export interface RestoreResult {
   readonly restoredFrom: string;
   readonly safetyCopy: string;
+  readonly restoredSnapshot: string | null;
 }
 
 /**
@@ -191,14 +268,46 @@ export function restoreCheckpoint(
   // Write beside the target then rename, so an interrupted copy cannot leave a
   // truncated file where the career used to be.
   const staged = `${targetPath}.restoring`;
-  fs.copyFileSync(info.dbPath, staged);
-  for (const suffix of WAL_SIDECARS) {
-    const sidecar = `${targetPath}${suffix}`;
-    if (fs.existsSync(sidecar)) fs.rmSync(sidecar);
+  let restoredSnapshot: string | null = null;
+  try {
+    fs.copyFileSync(info.dbPath, staged);
+    if (info.snapshot !== undefined && info.snapshot !== null) {
+      const snapshotDirectory = path.join(path.dirname(targetPath), 'snapshots');
+      fs.mkdirSync(snapshotDirectory, { recursive: true });
+      restoredSnapshot = path.join(
+        snapshotDirectory,
+        `restored-${info.snapshot.id}-${now}.snapshot`,
+      );
+      const stagedSnapshot = `${restoredSnapshot}.restoring`;
+      fs.copyFileSync(info.snapshot.path, stagedSnapshot);
+      fs.renameSync(stagedSnapshot, restoredSnapshot);
+      const stagedDb = openDatabase(staged, { wal: false });
+      try {
+        const updated = stagedDb.run(
+          'UPDATE sync_snapshots SET raw_path = ? WHERE id = ?',
+          restoredSnapshot,
+          info.snapshot.id,
+        );
+        if (updated.changes !== 1) {
+          throw new Error(
+            `Checkpoint snapshot row ${info.snapshot.id} is missing from the restored database`,
+          );
+        }
+      } finally {
+        stagedDb.close();
+      }
+    }
+    for (const suffix of WAL_SIDECARS) {
+      const sidecar = `${targetPath}${suffix}`;
+      if (fs.existsSync(sidecar)) fs.rmSync(sidecar);
+    }
+    fs.renameSync(staged, targetPath);
+    return { restoredFrom: info.id, safetyCopy, restoredSnapshot };
+  } catch (error) {
+    fs.rmSync(staged, { force: true });
+    if (restoredSnapshot !== null) fs.rmSync(restoredSnapshot, { force: true });
+    throw error;
   }
-  fs.renameSync(staged, targetPath);
-
-  return { restoredFrom: info.id, safetyCopy };
 }
 
 /** Applies the retention policy. Returns the checkpoints that were removed. */
@@ -218,6 +327,9 @@ export function pruneCheckpoints(dir: string): CheckpointInfo[] {
       // listCheckpoints already sorted newest first, so slice(keep) is the tail.
       try {
         fs.rmSync(info.dbPath, { force: true });
+        if (info.snapshot !== undefined && info.snapshot !== null) {
+          fs.rmSync(info.snapshot.path, { force: true });
+        }
         fs.rmSync(info.manifestPath, { force: true });
         removed.push(info);
       } catch {

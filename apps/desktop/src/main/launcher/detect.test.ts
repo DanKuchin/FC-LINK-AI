@@ -54,6 +54,7 @@ HKEY_LOCAL_MACHINE\\Software\\FC
       found: true,
       path: liveEditor,
       source: 'known_path',
+      version: 'v26.3.5',
       requiredForBuild: ['v26.3.5'],
     });
   });
@@ -74,7 +75,7 @@ HKEY_LOCAL_MACHINE\\Software\\FC
       },
     });
     expect(detected.game).toMatchObject({ found: true, source: 'manual', build: 'build-manual' });
-    expect(detected.liveEditor).toMatchObject({ found: true, source: 'manual' });
+    expect(detected.liveEditor).toMatchObject({ found: true, source: 'manual', version: null });
     expect(detected.liveEditor.problem).toMatch(/Cannot parse Live Editor manifest/);
   });
 
@@ -85,6 +86,6 @@ HKEY_LOCAL_MACHINE\\Software\\FC
       registryOutput: 'ignored',
     });
     expect(detected.game).toMatchObject({ found: false, source: 'none', build: null });
-    expect(detected.liveEditor).toMatchObject({ found: false, source: 'none' });
+    expect(detected.liveEditor).toMatchObject({ found: false, source: 'none', version: null });
   });
 });

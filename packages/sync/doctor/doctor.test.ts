@@ -16,6 +16,7 @@ function healthy(overrides: Partial<DoctorInput> = {}): DoctorInput {
     liveEditorFound: true,
     compatibility: supported,
     now: 100_000,
+    bridgeStartedAt: 1,
     helloSeenAt: 99_999,
     inCareer: true,
     expectedSaveUid: 'save-1',
@@ -58,7 +59,7 @@ describe('Sync Doctor', () => {
   it.each([
     ['fc_not_found', { fcFound: false }],
     ['live_editor_not_found', { liveEditorFound: false }],
-    ['lua_not_running', { helloSeenAt: 1 }],
+    ['lua_not_running', { helloSeenAt: null }],
     ['career_not_loaded', { inCareer: false }],
     ['wrong_save', { connectedSaveUid: 'other-save' }],
     ['stale_export', { snapshotInGameDate: 19_999 }],
@@ -94,5 +95,44 @@ describe('Sync Doctor', () => {
     const error = diagnoseSync(healthy({ compatibility: unsupported }))
       .find((item) => item.id === 'unsupported_version_pair');
     expect(error?.state).toBe('error');
+  });
+
+  it('marks unavailable evidence as unknown instead of falsely healthy', () => {
+    const unknown = diagnoseSync({
+      fcFound: true,
+      liveEditorFound: true,
+      compatibility: supported,
+      now: 100_000,
+      helloSeenAt: 99_999,
+    });
+    expect(unknown.filter((item) => item.state === 'warning').map((item) => item.id)).toEqual([
+      'career_not_loaded',
+      'wrong_save',
+      'stale_export',
+      'entity_mapping_conflict',
+      'failed_write',
+      'missing_acknowledgement',
+      'corrupted_snapshot',
+    ]);
+    expect(unknown.every((item) =>
+      item.state !== 'warning' || !/No action needed|matches|current|pass checksum/.test(item.cause)))
+      .toBe(true);
+  });
+
+  it('uses a startup grace period and does not expire a hello without a heartbeat contract', () => {
+    const waiting = diagnoseSync(healthy({
+      now: 10_000,
+      bridgeStartedAt: 1,
+      helloSeenAt: null,
+    })).find((item) => item.id === 'lua_not_running');
+    expect(waiting?.state).toBe('warning');
+
+    const oldHello = diagnoseSync(healthy({
+      now: 1_000_000,
+      bridgeStartedAt: 1,
+      helloSeenAt: 2,
+    })).find((item) => item.id === 'lua_not_running');
+    expect(oldHello?.state).toBe('ok');
+    expect(oldHello?.cause).toMatch(/during this desktop session/);
   });
 });

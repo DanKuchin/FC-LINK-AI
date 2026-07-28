@@ -117,4 +117,23 @@ describe('desktop result service', () => {
     expect(db.all('SELECT * FROM match_results')).toHaveLength(0);
     db.close();
   });
+
+  it('refuses a verified pre-match checkpoint from an earlier career day', () => {
+    const db = openDatabase(careerPath);
+    createCheckpoint(db, {
+      dir: checkpointDirectory,
+      reason: 'pre_match',
+      careerId: 1,
+      inGameDate: 19999,
+      now: 40,
+    });
+    db.close();
+    const service = new ResultService({ careerPath, checkpointDirectory });
+    expect(() => service.commitManual({
+      fixtureId: 1,
+      homeGoals: 0,
+      awayGoals: 0,
+      playerLines: [],
+    })).toThrow(/pre-match checkpoint/);
+  });
 });

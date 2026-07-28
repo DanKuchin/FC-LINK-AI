@@ -14,6 +14,8 @@ export const IPC_CHANNELS = {
   checkpointList: 'checkpoint:list',
   checkpointRestore: 'checkpoint:restore',
   diagnosticExport: 'diagnostic:export',
+  doctorConditions: 'doctor:conditions',
+  squadGet: 'squad:get',
 } as const;
 
 export interface VersionSurface {
@@ -31,14 +33,70 @@ export interface SyncStatus {
   readonly writesEnabled: boolean;
 }
 
+export interface DoctorConditionView {
+  readonly id:
+    | 'fc_not_found'
+    | 'live_editor_not_found'
+    | 'unsupported_version_pair'
+    | 'lua_not_running'
+    | 'career_not_loaded'
+    | 'wrong_save'
+    | 'stale_export'
+    | 'permission_or_av_block'
+    | 'entity_mapping_conflict'
+    | 'failed_write'
+    | 'missing_acknowledgement'
+    | 'corrupted_snapshot';
+  readonly state: 'ok' | 'warning' | 'error';
+  readonly title: string;
+  readonly cause: string;
+  readonly offer: string;
+  readonly deepLink: string;
+  readonly count?: number;
+}
+
 export interface EnvironmentSummary {
   readonly gameFound: boolean;
   readonly gamePath: string | null;
   readonly gameBuild: string | null;
   readonly liveEditorFound: boolean;
   readonly liveEditorPath: string | null;
+  readonly liveEditorVersion: string | null;
   readonly requiredLiveEditor: readonly string[] | null;
   readonly problem: string | null;
+}
+
+export interface SquadPlayerView {
+  readonly id: number;
+  readonly name: string;
+  readonly position: string;
+  readonly age: number;
+  readonly abilityLow: number | null;
+  readonly abilityHigh: number | null;
+  readonly potentialLow: number | null;
+  readonly potentialHigh: number | null;
+  readonly fitness: number | null;
+  readonly form: number | null;
+  readonly morale: number | null;
+  readonly contractEnd: number | null;
+  readonly squadRole: string | null;
+  readonly wage: number | null;
+  readonly wageEstimated: boolean;
+  readonly personality: {
+    readonly professionalism: number;
+    readonly ambition: number;
+    readonly loyalty: number;
+    readonly consistency: number;
+    readonly pressure: number;
+    readonly seed: string;
+  } | null;
+}
+
+export interface SquadView {
+  readonly source: 'career' | 'unavailable';
+  readonly clubName: string | null;
+  readonly currentDate: number | null;
+  readonly players: readonly SquadPlayerView[];
 }
 
 export interface BridgeInstallPreview {
@@ -130,6 +188,8 @@ export type RestoreCheckpointResult =
 export interface TenureDesktopApi {
   readonly versions: () => Promise<VersionSurface>;
   readonly syncStatus: () => Promise<SyncStatus>;
+  readonly doctorConditions: () => Promise<readonly DoctorConditionView[]>;
+  readonly squad: () => Promise<SquadView>;
   readonly environment: () => Promise<EnvironmentSummary>;
   readonly browseForGame: () => Promise<EnvironmentSummary>;
   readonly browseForLiveEditor: () => Promise<EnvironmentSummary>;
