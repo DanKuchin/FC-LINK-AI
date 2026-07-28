@@ -3,7 +3,9 @@
 An original companion management game for **EA Sports FC 26** (PC, offline career only).
 You run the club; FC plays the matches. Nothing your club sees is ever forgotten.
 
-> **Status: planning. No code yet.** The next step is a ~30-hour technical spike that decides whether the project is real.
+> **Status: planning + foundations.** The next step is a technical spike that decides whether the project is real — currently blocked on a Live Editor version mismatch.
+>
+> **New here? Read [HANDOFF.md](HANDOFF.md) first** — it's the map, the reasoning behind each decision, and the list of traps.
 
 ---
 
