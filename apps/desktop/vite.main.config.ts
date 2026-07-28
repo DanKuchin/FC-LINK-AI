@@ -11,6 +11,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@tenure/sync': path.join(repositoryRoot, 'packages/sync'),
+      '@tenure/persistence': path.join(repositoryRoot, 'packages/persistence'),
     },
   },
   build: {

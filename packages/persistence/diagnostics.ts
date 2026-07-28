@@ -31,3 +31,27 @@ export function recordDiagnosticRun(db: Db, input: DiagnosticRunInput): number {
   );
   return Number(result.lastInsertRowid);
 }
+
+export interface RestoreHistoryInput {
+  readonly careerId?: number | null;
+  readonly checkpointManifest: string;
+  readonly restoredAt: number;
+  readonly safetyCopyPath: string;
+  readonly result: 'restored' | 'failed';
+  readonly error?: string | null;
+}
+
+export function recordRestoreHistory(db: Db, input: RestoreHistoryInput): number {
+  const result = db.run(
+    `INSERT INTO restore_history (
+      career_id, checkpoint_manifest, restored_at, safety_copy_path, result, error
+    ) VALUES (?, ?, ?, ?, ?, ?)`,
+    input.careerId ?? null,
+    input.checkpointManifest,
+    input.restoredAt,
+    input.safetyCopyPath,
+    input.result,
+    input.error ?? null,
+  );
+  return Number(result.lastInsertRowid);
+}

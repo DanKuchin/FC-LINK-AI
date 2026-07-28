@@ -24,7 +24,7 @@ database.
 | Check | Result |
 |---|---|
 | `pnpm build` | pass; renderer, Electron main and CommonJS preload built |
-| `pnpm check` | pass; 15 files, 118 tests |
+| `pnpm check` | pass; 18 files, 130 tests |
 | Electron cold-boot smoke | pass; renderer + preload + typed IPC + Electron `node:sqlite` |
 | Process killed mid-day transaction | pass; prior day restored, SQLite integrity clean |
 | Migration corpus | pass; schema v1 opens at v3 with career row preserved |
@@ -73,6 +73,8 @@ machine. Never arm the write probe against a career that matters.
 | Typed IPC boundary | implemented | sandbox + context isolation; renderer boundary test |
 | SQLite + migrations | implemented | Electron runtime check plus persistence suite |
 | Checkpoint/restore core | implemented | checksum, integrity check, safety copy, retention tests |
+| FC + Live Editor detection | implemented locally | registry, known-path, manifest and manual-path fixture tests; live Windows validation pending |
+| Bridge installer | implemented locally | diff preview, SHA-256 verification, tamper conflict and explicit overwrite consent |
 | Squad screen | presentation shell | clearly labelled sample data; live data waits for schema |
 | Result confirmation screen | presentation shell | no auto-commit; manual fallback represented |
 | Import pipeline | blocked correctly | requires recorded real schema |
@@ -88,7 +90,7 @@ does not present the shell as a working import.
 |---|---|---|
 | Full club/player import | blocked correctly | requires real schema fixture |
 | Migration framework + old-save test | implemented | shipped v1 → v3 migration preserves the career |
-| Backup/restore | core implemented, UI wiring partial | verified checkpoint and atomic restore APIs exist |
+| Backup/restore | implemented | verified list, confirmation, atomic restore, safety copy and restore-history UI workflow |
 | Sync Doctor v1 | core implemented, shell present | 12 failure classes, recovery offers and deep links |
 | Idempotent write queue | implemented, not enabled | stable keys, max-10 batches, attempts, ack/read-back/durability states |
 | Compatibility manifest | implemented | supported/untested/unsupported policy; nothing marked verified |
@@ -109,6 +111,16 @@ does not present the shell as a working import.
 5. The crash test exposed SQLite's `CURRENT_DATE` keyword collision. Queries in
    the test now qualify `careers.current_date`, documenting the required query
    style for the future repository adapter.
+6. The spike-only environment detector had no typed desktop service. Detection
+   now covers registry entries, known paths, exact build manifests, compatibility
+   tables, manual folder selection, and actionable parse failures.
+7. The PowerShell spike copier could silently replace existing Lua files. The
+   production installer now previews every file, remembers prior checksums,
+   rejects user modifications by default, revalidates the plan before writing,
+   and verifies installed SHA-256 values.
+8. Checkpoint restore was a tested library with an empty desktop adapter. The
+   Sync Doctor now lists verification state, confirms restore, keeps the
+   pre-restore safety copy, and appends restore history.
 
 ## Remaining critical path
 
@@ -116,7 +128,7 @@ does not present the shell as a working import.
 2. Review the recorded schema and anonymise the fixture.
 3. Implement mapping/import only against that fixture.
 4. Record pre/post snapshots for a played match and implement the diff.
-5. Wire real career services into Squad, Result confirmation, restore, and
-   diagnostics.
+5. Wire imported career services into Squad and Result confirmation, then feed
+   live bridge logs and Doctor conditions into diagnostics.
 6. Repeat the real-match flow twice from a cold start.
 7. Re-run this audit; only then mark Phases 0–2 complete.

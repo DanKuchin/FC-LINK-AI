@@ -50,4 +50,20 @@ td { padding: 15px 12px; border-bottom: 1px solid #30312c; }
 .check.warning .state-mark { color: var(--warning); }
 .check.error .state-mark { color: var(--error); }
 .versions { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 20px; color: var(--ink-muted); font-family: ui-monospace, monospace; font-size: 11px; }
+.environment, .recovery { margin-top: 38px; border-top: 1px solid var(--line); padding-top: 28px; }
+.section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+.section-heading h2 { margin: 3px 0; font-family: Georgia, serif; font-weight: 400; font-size: 28px; }
+.section-heading button, .checkpoint button, .path-row button { border: 1px solid var(--line); background: transparent; color: #fff; padding: 9px 13px; }
+.path-row { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 13px 0; border-bottom: 1px solid #30312c; }
+.path-row p { margin: 4px 0 0; color: var(--ink-muted); font-family: ui-monospace, monospace; font-size: 11px; }
+.bridge-preview { margin-top: 18px; }
+.bridge-preview details { border-bottom: 1px solid #30312c; padding: 10px 0; }
+.bridge-preview summary { display: flex; justify-content: space-between; cursor: pointer; }
+.bridge-preview summary em { color: var(--warning); font-style: normal; }
+.bridge-preview pre { max-height: 240px; overflow: auto; background: #11120f; color: #c8c7bc; padding: 12px; font-size: 10px; }
+.actions .danger { background: var(--error); color: #171815; }
+.checkpoint { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 14px 0; border-bottom: 1px solid #30312c; }
+.checkpoint p, .empty, .recovery-message { color: var(--ink-muted); font-size: 12px; margin: 5px 0; }
+.checkpoint button:disabled { opacity: .35; }
+.recovery-message { min-height: 18px; color: #d7d1bd; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }

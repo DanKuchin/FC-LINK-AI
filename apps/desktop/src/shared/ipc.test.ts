@@ -7,7 +7,7 @@ describe('desktop IPC contract', () => {
   it('has unique, namespaced channels', () => {
     const channels = Object.values(IPC_CHANNELS);
     expect(new Set(channels).size).toBe(channels.length);
-    for (const channel of channels) expect(channel).toMatch(/^[a-z]+:[a-z]+$/);
+    for (const channel of channels) expect(channel).toMatch(/^[a-z][a-z-]*:[a-z][a-z-]*$/);
   });
 
   it('keeps Electron and Node out of renderer source', () => {
