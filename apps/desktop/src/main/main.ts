@@ -23,6 +23,7 @@ import { ResultService } from './services/resultService.js';
 import { MatchPrepService } from './services/matchPrepService.js';
 import { BridgeRuntime } from './services/bridgeRuntime.js';
 import { SquadService } from './services/squadService.js';
+import { CompatibilityManifestService } from './services/compatibilityManifestService.js';
 import type {
   BridgeInstallPreview,
   EnvironmentSummary,
@@ -91,6 +92,7 @@ async function createWindow(): Promise<BrowserWindow> {
         preloadReady: typeof window.tenure?.versions === 'function',
         versions: await window.tenure?.versions?.(),
         doctorConditions: await window.tenure?.doctorConditions?.(),
+        compatibilityManifest: await window.tenure?.compatibilityManifest?.(),
         squadSurface: {
           table: document.querySelector('table caption')?.textContent,
           sortableColumns: document.querySelectorAll('th[aria-sort]').length,
@@ -103,6 +105,10 @@ async function createWindow(): Promise<BrowserWindow> {
       readonly preloadReady: boolean;
       readonly versions?: { readonly sqliteAvailable: boolean };
       readonly doctorConditions?: readonly unknown[];
+      readonly compatibilityManifest?: {
+        readonly manifestVersion: number;
+        readonly source: string;
+      };
       readonly squadSurface?: {
         readonly table?: string;
         readonly sortableColumns: number;
@@ -114,6 +120,7 @@ async function createWindow(): Promise<BrowserWindow> {
       !smokeState.preloadReady ||
       smokeState.versions?.sqliteAvailable !== true ||
       smokeState.doctorConditions?.length !== 12 ||
+      smokeState.compatibilityManifest?.manifestVersion !== 1 ||
       smokeState.squadSurface?.table !== 'Managed first-team squad' ||
       smokeState.squadSurface.sortableColumns < 6 ||
       !smokeState.squadSurface.densityControl ||
@@ -161,11 +168,15 @@ app.whenReady().then(async () => {
   const squadService = new SquadService({
     careerPath: path.join(dataDirectory, 'career.db'),
   });
+  const compatibilityManifestService = new CompatibilityManifestService({
+    dataDirectory,
+    bundled: parseManifest(JSON.stringify(compatibilityManifestJson)),
+  });
   const bridgeRuntime = new BridgeRuntime({
     dataDirectory,
     careerPath: path.join(dataDirectory, 'career.db'),
     snapshotDirectory: path.join(dataDirectory, 'snapshots'),
-    manifest: parseManifest(JSON.stringify(compatibilityManifestJson)),
+    manifest: () => compatibilityManifestService.manifest(),
     hostEnvironment: detect,
   });
   await bridgeRuntime.start();
@@ -174,9 +185,14 @@ app.whenReady().then(async () => {
   });
   registerIpc({
     sqliteAvailable: await sqliteAvailable(),
+    compatibilityManifestVersion: () =>
+      compatibilityManifestService.manifest().manifest_version,
     syncStatus: () => bridgeRuntime.syncStatus(detect()),
     doctorConditions: () => bridgeRuntime.conditions(detect()),
     squad: () => squadService.get(),
+    compatibilityManifest: () => compatibilityManifestService.status(),
+    installCompatibilityManifest: (selectedPath) =>
+      compatibilityManifestService.install(selectedPath),
     environment: detect,
     setManualGamePath: (selectedPath) => {
       manualGamePath = selectedPath;
@@ -229,7 +245,8 @@ app.whenReady().then(async () => {
           app: app.getVersion(),
           saveSchema: 3,
           bridgeProtocol: 1,
-          compatibilityManifest: 1,
+          compatibilityManifest:
+            compatibilityManifestService.manifest().manifest_version,
         },
         conditions,
         logs: bridgeRuntime.diagnosticLogs(),

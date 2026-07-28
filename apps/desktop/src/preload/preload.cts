@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron') as typeof import('electron');
 import type {
   CheckpointSummary,
+  CompatibilityManifestInstallResult,
+  CompatibilityManifestSummary,
   BridgeInstallPreview,
   BridgeInstallSummary,
   DoctorConditionView,
@@ -36,6 +38,8 @@ const IPC_CHANNELS: IpcChannels = {
   diagnosticExport: 'diagnostic:export',
   doctorConditions: 'doctor:conditions',
   squadGet: 'squad:get',
+  compatibilityStatus: 'compatibility:status',
+  compatibilityInstall: 'compatibility:install',
 };
 
 const api: TenureDesktopApi = Object.freeze({
@@ -44,6 +48,14 @@ const api: TenureDesktopApi = Object.freeze({
   doctorConditions: () =>
     ipcRenderer.invoke(IPC_CHANNELS.doctorConditions) as Promise<readonly DoctorConditionView[]>,
   squad: () => ipcRenderer.invoke(IPC_CHANNELS.squadGet) as Promise<SquadView>,
+  compatibilityManifest: () =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.compatibilityStatus,
+    ) as Promise<CompatibilityManifestSummary>,
+  installCompatibilityManifest: () =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.compatibilityInstall,
+    ) as Promise<CompatibilityManifestInstallResult>,
   environment: () =>
     ipcRenderer.invoke(IPC_CHANNELS.environmentGet) as Promise<EnvironmentSummary>,
   browseForGame: () =>

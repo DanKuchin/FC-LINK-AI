@@ -92,8 +92,11 @@ td { padding: 15px 12px; border-bottom: 1px solid #30312c; }
 .versions { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 20px; color: var(--ink-muted); font-family: ui-monospace, monospace; font-size: 11px; }
 .environment, .recovery { margin-top: 38px; border-top: 1px solid var(--line); padding-top: 28px; }
 .section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+.section-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .section-heading h2 { margin: 3px 0; font-family: Georgia, serif; font-weight: 400; font-size: 28px; }
 .section-heading button, .checkpoint button, .path-row button { border: 1px solid var(--line); background: transparent; color: #fff; padding: 9px 13px; }
+.manifest-status { margin-top: 18px; padding: 12px 0; border-bottom: 1px solid #30312c; }
+.manifest-status p { margin: 4px 0 0; color: var(--ink-muted); font: 11px ui-monospace, monospace; }
 .path-row { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 13px 0; border-bottom: 1px solid #30312c; }
 .path-row p { margin: 4px 0 0; color: var(--ink-muted); font-family: ui-monospace, monospace; font-size: 11px; }
 .bridge-preview { margin-top: 18px; }

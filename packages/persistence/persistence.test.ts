@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -445,21 +446,73 @@ describe('checkpoints', () => {
     expect(verifyCheckpoint(info)).toEqual({ ok: true });
 
     const restored = restoreCheckpoint(info, file, { now: 2000 });
-    expect(restored.restoredSnapshot).not.toBeNull();
+    expect(restored.restoredSnapshot).toBe(archived.record.raw_path);
+    const restoredDigest = crypto
+      .createHash('sha256')
+      .update(fs.readFileSync(file))
+      .digest('hex');
+    expect(restoredDigest).toBe(info.checksum);
     expect(fs.readFileSync(restored.restoredSnapshot ?? '', 'utf8'))
       .toBe('{"opaque":"evidence"}');
     db = openDatabase(file);
     expect(db.get<{ raw_path: string }>(
       'SELECT raw_path FROM sync_snapshots WHERE id = ?',
       archived.record.id,
-    )?.raw_path).toBe(restored.restoredSnapshot);
+    )?.raw_path).toBe(archived.record.raw_path);
     db.close();
+    const digestBeforeUnsafeRestore = crypto
+      .createHash('sha256')
+      .update(fs.readFileSync(file))
+      .digest('hex');
+
+    const outside = path.resolve(tmp, '..', 'escaped.snapshot');
+    expect(() => restoreCheckpoint({
+      ...info,
+      snapshot: info.snapshot === null || info.snapshot === undefined
+        ? null
+        : { ...info.snapshot, sourcePath: outside },
+    }, file, { now: 3000 })).toThrow(/outside the career data directory/);
+    expect(fs.existsSync(outside)).toBe(false);
+    expect(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'))
+      .toBe(digestBeforeUnsafeRestore);
+
+    const restoredOverExistingSnapshot = restoreCheckpoint(info, file, { now: 4000 });
+    expect(restoredOverExistingSnapshot.snapshotSafetyCopy).not.toBeNull();
+    expect(fs.readFileSync(
+      restoredOverExistingSnapshot.snapshotSafetyCopy ?? '',
+      'utf8',
+    )).toBe('{\"opaque\":\"evidence\"}');
 
     fs.appendFileSync(info.snapshot?.path ?? '', 'tamper');
     expect(verifyCheckpoint(info)).toEqual({
       ok: false,
       problem: 'checkpoint raw snapshot has been modified since it was written',
     });
+  });
+
+  it('leaves no partial checkpoint when raw evidence fails verification', () => {
+    const file = path.join(tmp, 'career.db');
+    const dir = path.join(tmp, 'checkpoints');
+    const db = careerAt(file);
+    const archived = archiveSnapshot(db, {
+      careerId: 1,
+      directory: path.join(tmp, 'raw'),
+      reason: 'pre_match',
+      payload: 'valid-before-tamper',
+      takenAt: 900,
+      protocol: 1,
+    });
+    fs.appendFileSync(archived.record.raw_path, 'tamper');
+
+    expect(() => createCheckpoint(db, {
+      dir,
+      reason: 'pre_match',
+      careerId: 1,
+      now: 1000,
+    })).toThrow(/checksum mismatch/);
+    expect(fs.readdirSync(dir)).toEqual([]);
+    expect(db.integrityProblem()).toBeNull();
+    db.close();
   });
 
   it('clears stale WAL sidecars on restore', () => {

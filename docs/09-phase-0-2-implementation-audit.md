@@ -24,10 +24,12 @@ database.
 | Check | Result |
 |---|---|
 | `pnpm build` | pass; renderer, Electron main and CommonJS preload built |
-| `pnpm check` | pass; 25 files, 169 tests |
+| `pnpm check` | pass; 26 files, 174 tests |
 | Electron cold-boot smoke | pass; renderer + preload + typed IPC + Electron `node:sqlite` + live Doctor + Squad trust surface |
 | Process killed mid-day transaction | pass; prior day restored, SQLite integrity clean |
 | Migration corpus | pass; schema v1 opens at v3 with career row preserved |
+| Checkpoint integrity | pass; byte-identical database restore, bundled raw evidence, no partial failed checkpoint |
+| Manifest override | pass; validate-before-replace, downgrade refusal, damaged-override fallback |
 | Sync Doctor | pass; all 12 conditions in doc 08 A5 exercised |
 | Loopback bridge | pass; token rejection/acceptance, hello/event/log/ack/commands/chunks |
 | Determinism | pass; two 365-day runs produce identical state |
@@ -97,7 +99,7 @@ does not present the shell as a working import.
 | Backup/restore | implemented | database + raw-evidence bundle, verified list, confirmation, atomic restore, safety copy and restore-history UI workflow |
 | Sync Doctor v1 | implemented locally | 12 live conditions derived from environment, Lua hello, career, snapshots and queue; recovery offers and deep links |
 | Idempotent write queue | implemented, not enabled | stable keys, max-10 batches, attempts, ack/read-back/durability states |
-| Compatibility manifest | implemented | supported/untested/unsupported policy; nothing marked verified |
+| Compatibility manifest | implemented | supported/untested/unsupported policy; atomic manual override without app release; nothing marked verified |
 | Diagnostic bundle | implemented | live Doctor state + bounded bridge logs, standard ZIP, atomic mode 0600, credential/save-ID redaction, run history |
 | Killed-process durability exit | implemented | real child process killed inside an open day transaction |
 
@@ -152,8 +154,9 @@ does not present the shell as a working import.
     player profile. Sample data remains explicitly labelled when no career exists.
 16. Checkpoints copied only SQLite even though the architecture requires the
     latest raw snapshot too. New checkpoints now bundle and verify that evidence;
-    restore writes a unique snapshot copy and updates the staged database before
-    the atomic replacement. Legacy database-only manifests remain readable.
+    restore atomically replaces only a validated snapshot path beneath the career
+    data directory, keeps a snapshot safety copy when needed, and leaves the
+    restored database byte-identical. Legacy database-only manifests remain readable.
 17. The production Lua hello uses `game_build: "detected_by_host"` by design.
     Treating that sentinel as a literal build made every real connection look
     unsupported. Compatibility and archived metadata now use the desktop's
@@ -162,6 +165,11 @@ does not present the shell as a working import.
     shipped Lua bridge has no heartbeat contract. It now shows an initial grace
     warning, fails only when no hello arrives, and retains session evidence once
     a real hello has been received.
+19. Electron consumed a build-bundled compatibility manifest even though Phase 2
+    requires it to update independently. Sync Doctor now accepts an explicitly
+    selected JSON override, validates it before atomic replacement, rejects
+    older/unsupported formats, falls back to the bundled baseline if a dropped
+    file is damaged, and applies the result to compatibility checks immediately.
 
 ## Remaining critical path
 

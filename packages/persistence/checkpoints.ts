@@ -243,6 +243,15 @@ export interface RestoreResult {
   readonly restoredFrom: string;
   readonly safetyCopy: string;
   readonly restoredSnapshot: string | null;
+  readonly snapshotSafetyCopy: string | null;
+}
+
+function insideDirectory(directory: string, candidate: string): boolean {
+  const relative = path.relative(path.resolve(directory), path.resolve(candidate));
+  return relative.length > 0 &&
+    !relative.startsWith(`..${path.sep}`) &&
+    relative !== '..' &&
+    !path.isAbsolute(relative);
 }
 
 /**
@@ -262,6 +271,17 @@ export function restoreCheckpoint(
   if (!verified.ok) throw new Error(`Refusing to restore: ${verified.problem}`);
 
   const now = options.now ?? Date.now();
+  if (
+    info.snapshot !== undefined &&
+    info.snapshot !== null &&
+    !insideDirectory(path.dirname(targetPath), info.snapshot.sourcePath)
+  ) {
+    throw new Error(
+      `Refusing to restore snapshot outside the career data directory: ${
+        info.snapshot.sourcePath
+      }`,
+    );
+  }
   const safetyCopy = `${targetPath}.before-restore-${now}`;
   if (fs.existsSync(targetPath)) fs.copyFileSync(targetPath, safetyCopy);
 
@@ -269,43 +289,48 @@ export function restoreCheckpoint(
   // truncated file where the career used to be.
   const staged = `${targetPath}.restoring`;
   let restoredSnapshot: string | null = null;
+  let snapshotSafetyCopy: string | null = null;
+  let stagedSnapshot: string | null = null;
+  let snapshotInstalled = false;
   try {
     fs.copyFileSync(info.dbPath, staged);
     if (info.snapshot !== undefined && info.snapshot !== null) {
-      const snapshotDirectory = path.join(path.dirname(targetPath), 'snapshots');
-      fs.mkdirSync(snapshotDirectory, { recursive: true });
-      restoredSnapshot = path.join(
-        snapshotDirectory,
-        `restored-${info.snapshot.id}-${now}.snapshot`,
-      );
-      const stagedSnapshot = `${restoredSnapshot}.restoring`;
+      restoredSnapshot = path.resolve(info.snapshot.sourcePath);
+      fs.mkdirSync(path.dirname(restoredSnapshot), { recursive: true });
+      stagedSnapshot = `${restoredSnapshot}.restoring-${now}`;
       fs.copyFileSync(info.snapshot.path, stagedSnapshot);
-      fs.renameSync(stagedSnapshot, restoredSnapshot);
-      const stagedDb = openDatabase(staged, { wal: false });
-      try {
-        const updated = stagedDb.run(
-          'UPDATE sync_snapshots SET raw_path = ? WHERE id = ?',
-          restoredSnapshot,
-          info.snapshot.id,
-        );
-        if (updated.changes !== 1) {
-          throw new Error(
-            `Checkpoint snapshot row ${info.snapshot.id} is missing from the restored database`,
-          );
-        }
-      } finally {
-        stagedDb.close();
+      if (snapshotDigest(stagedSnapshot) !== info.snapshot.checksum) {
+        throw new Error('Staged checkpoint snapshot failed checksum verification');
       }
+      if (fs.existsSync(restoredSnapshot)) {
+        snapshotSafetyCopy = `${restoredSnapshot}.before-restore-${now}`;
+        fs.copyFileSync(restoredSnapshot, snapshotSafetyCopy);
+      }
+      fs.renameSync(stagedSnapshot, restoredSnapshot);
+      stagedSnapshot = null;
+      snapshotInstalled = true;
     }
     for (const suffix of WAL_SIDECARS) {
       const sidecar = `${targetPath}${suffix}`;
       if (fs.existsSync(sidecar)) fs.rmSync(sidecar);
     }
     fs.renameSync(staged, targetPath);
-    return { restoredFrom: info.id, safetyCopy, restoredSnapshot };
+    return {
+      restoredFrom: info.id,
+      safetyCopy,
+      restoredSnapshot,
+      snapshotSafetyCopy,
+    };
   } catch (error) {
     fs.rmSync(staged, { force: true });
-    if (restoredSnapshot !== null) fs.rmSync(restoredSnapshot, { force: true });
+    if (stagedSnapshot !== null) fs.rmSync(stagedSnapshot, { force: true });
+    if (snapshotInstalled && restoredSnapshot !== null) {
+      if (snapshotSafetyCopy !== null && fs.existsSync(snapshotSafetyCopy)) {
+        fs.copyFileSync(snapshotSafetyCopy, restoredSnapshot);
+      } else {
+        fs.rmSync(restoredSnapshot, { force: true });
+      }
+    }
     throw error;
   }
 }

@@ -16,6 +16,8 @@ export const IPC_CHANNELS = {
   diagnosticExport: 'diagnostic:export',
   doctorConditions: 'doctor:conditions',
   squadGet: 'squad:get',
+  compatibilityStatus: 'compatibility:status',
+  compatibilityInstall: 'compatibility:install',
 } as const;
 
 export interface VersionSurface {
@@ -65,6 +67,24 @@ export interface EnvironmentSummary {
   readonly requiredLiveEditor: readonly string[] | null;
   readonly problem: string | null;
 }
+
+export interface CompatibilityManifestSummary {
+  readonly manifestVersion: number;
+  readonly updatedAt: string;
+  readonly source: 'bundled' | 'user';
+  readonly overridePath: string;
+  readonly problem: string | null;
+}
+
+export type CompatibilityManifestInstallResult =
+  | {
+    readonly cancelled: true;
+    readonly status: CompatibilityManifestSummary;
+  }
+  | {
+    readonly cancelled: false;
+    readonly status: CompatibilityManifestSummary;
+  };
 
 export interface SquadPlayerView {
   readonly id: number;
@@ -190,6 +210,8 @@ export interface TenureDesktopApi {
   readonly syncStatus: () => Promise<SyncStatus>;
   readonly doctorConditions: () => Promise<readonly DoctorConditionView[]>;
   readonly squad: () => Promise<SquadView>;
+  readonly compatibilityManifest: () => Promise<CompatibilityManifestSummary>;
+  readonly installCompatibilityManifest: () => Promise<CompatibilityManifestInstallResult>;
   readonly environment: () => Promise<EnvironmentSummary>;
   readonly browseForGame: () => Promise<EnvironmentSummary>;
   readonly browseForLiveEditor: () => Promise<EnvironmentSummary>;

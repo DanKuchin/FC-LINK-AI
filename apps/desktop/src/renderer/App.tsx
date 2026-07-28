@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type {
   BridgeInstallPreview,
   CheckpointSummary,
+  CompatibilityManifestSummary,
   DoctorConditionView,
   EnvironmentSummary,
   FixturePlayer,
@@ -99,6 +100,7 @@ export function App() {
   const [bridgePreview, setBridgePreview] = useState<BridgeInstallPreview | null>(null);
   const [doctorConditions, setDoctorConditions] = useState<readonly DoctorConditionView[]>([]);
   const [squad, setSquad] = useState<SquadView | null>(null);
+  const [manifest, setManifest] = useState<CompatibilityManifestSummary | null>(null);
   const [recoveryMessage, setRecoveryMessage] = useState('');
   const [sync, setSync] = useState<SyncStatus>({
     state: 'offline',
@@ -121,6 +123,7 @@ export function App() {
     void refreshSync();
     void window.tenure.environment().then(setEnvironment);
     void window.tenure.squad().then(setSquad);
+    void window.tenure.compatibilityManifest().then(setManifest);
     void window.tenure.listCheckpoints().then(setCheckpoints);
     const refreshTimer = globalThis.setInterval(() => void refreshSync(), 3_000);
     return () => globalThis.clearInterval(refreshTimer);
@@ -182,6 +185,23 @@ export function App() {
     }
   };
 
+  const installCompatibilityManifest = async () => {
+    try {
+      const result = await window.tenure.installCompatibilityManifest();
+      setManifest(result.status);
+      if (result.cancelled) return;
+      setVersions(await window.tenure.versions());
+      await refreshSync();
+      setRecoveryMessage(
+        `Compatibility manifest ${result.status.updatedAt} installed from the selected file.`,
+      );
+    } catch (error) {
+      setRecoveryMessage(
+        `Compatibility manifest rejected: ${(error as Error).message}`,
+      );
+    }
+  };
+
   return (
     <div className="shell">
       <aside className="rail">
@@ -213,6 +233,7 @@ export function App() {
           <Doctor
             sync={sync}
             conditions={doctorConditions}
+            manifest={manifest}
             versions={versions}
             environment={environment}
             bridgePreview={bridgePreview}
@@ -224,6 +245,7 @@ export function App() {
             onPreviewBridge={previewBridge}
             onInstallBridge={installBridge}
             onRetest={refreshSync}
+            onInstallManifest={installCompatibilityManifest}
           />
         )}
       </main>
@@ -605,6 +627,7 @@ function Result({ onCommitted }: { readonly onCommitted: () => Promise<void> }) 
 interface DoctorProps {
   readonly sync: SyncStatus;
   readonly conditions: readonly DoctorConditionView[];
+  readonly manifest: CompatibilityManifestSummary | null;
   readonly versions: VersionSurface | null;
   readonly environment: EnvironmentSummary | null;
   readonly bridgePreview: BridgeInstallPreview | null;
@@ -616,11 +639,13 @@ interface DoctorProps {
   readonly onPreviewBridge: () => Promise<void>;
   readonly onInstallBridge: (allowUserModified: boolean) => Promise<void>;
   readonly onRetest: () => Promise<void>;
+  readonly onInstallManifest: () => Promise<void>;
 }
 
 function Doctor({
   sync,
   conditions,
+  manifest,
   versions,
   environment,
   bridgePreview,
@@ -632,6 +657,7 @@ function Doctor({
   onPreviewBridge,
   onInstallBridge,
   onRetest,
+  onInstallManifest,
 }: DoctorProps) {
   return (
     <section className="paper">
@@ -676,9 +702,21 @@ function Doctor({
       <section className="environment">
         <div className="section-heading">
           <div><p className="eyebrow">Local integration</p><h2>FC environment</h2></div>
-          <button className="secondary" onClick={() => void onPreviewBridge()}>
-            Preview bridge install
-          </button>
+          <div className="section-actions">
+            <button className="secondary" onClick={() => void onInstallManifest()}>
+              Import compatibility manifest
+            </button>
+            <button className="secondary" onClick={() => void onPreviewBridge()}>
+              Preview bridge install
+            </button>
+          </div>
+        </div>
+        <div className="manifest-status">
+          <strong>Compatibility manifest</strong>
+          <p>
+            {manifest?.updatedAt ?? 'checking'} · {manifest?.source ?? 'bundled'} source
+          </p>
+          {manifest?.problem ? <p className="recovery-message">{manifest.problem}</p> : null}
         </div>
         <div className="path-row">
           <div>

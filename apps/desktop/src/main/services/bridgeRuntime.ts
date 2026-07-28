@@ -54,7 +54,7 @@ export interface BridgeRuntimeOptions {
   readonly dataDirectory: string;
   readonly careerPath: string;
   readonly snapshotDirectory: string;
-  readonly manifest: CompatibilityManifest;
+  readonly manifest: CompatibilityManifest | (() => CompatibilityManifest);
   readonly hostEnvironment?: () => EnvironmentSummary;
   readonly now?: () => number;
 }
@@ -137,7 +137,10 @@ export class BridgeRuntime {
   conditions(environment: EnvironmentSummary): readonly DoctorCondition[] {
     const evidence = this.readCareerEvidence();
     const reportedBuild = this.peer?.game_build;
-    const compatibility = evaluateSupport(this.options.manifest, {
+    const manifest = typeof this.options.manifest === 'function'
+      ? this.options.manifest()
+      : this.options.manifest;
+    const compatibility = evaluateSupport(manifest, {
       gameBuild: reportedBuild === undefined || reportedBuild === 'detected_by_host'
         ? environment.gameBuild
         : reportedBuild,
