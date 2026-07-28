@@ -182,9 +182,10 @@ app.whenReady().then(async () => {
     checkpointDirectory: path.join(dataDirectory, 'checkpoints'),
     migrationDirectory: path.join(directory, 'migrations'),
   });
-  const bridgeSourceDirectory = app.isPackaged
-    ? path.join(process.resourcesPath, 'bridge')
-    : path.resolve(directory, '../../../../bridge');
+  const bridgeSourceDirectory = path.join(directory, 'bridge');
+  if (!fs.existsSync(path.join(bridgeSourceDirectory, 'tenure_bridge.lua'))) {
+    throw new Error(`Built Lua bridge assets are missing from ${bridgeSourceDirectory}`);
+  }
   let manualGamePath: string | null = null;
   let manualLiveEditorPath: string | null = null;
   let pendingBridgePlan: BridgeInstallPlan | null = null;

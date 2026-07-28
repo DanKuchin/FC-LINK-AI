@@ -24,7 +24,7 @@ database.
 | Check | Result |
 |---|---|
 | `pnpm build` | pass; renderer, Electron main and CommonJS preload built |
-| `pnpm check` | pass; 28 files, 180 tests |
+| `pnpm check` | pass; 29 files, 186 tests |
 | Electron cold-boot smoke | pass; no renderer/preload errors; typed IPC + Electron `node:sqlite` + live Doctor + accessible Squad trust surface |
 | Process killed mid-day transaction | pass; prior day restored, SQLite integrity clean |
 | Migration corpus | pass; desktop startup checkpoints and opens schema v1 at v4 with career row preserved |
@@ -32,6 +32,7 @@ database.
 | Manifest override | pass; validate-before-replace, downgrade refusal, damaged-override fallback |
 | Sync Doctor | pass; all 12 conditions in doc 08 A5 exercised |
 | Loopback bridge | pass; token rejection/acceptance, clean port-collision recovery, hello/event/log/ack/commands/chunks |
+| Phase 0 grader | pass; eleven requirement-aligned gates; only one compatible, coherent all-PASS evidence set can authorise Phase 1 |
 | Determinism | pass; two 365-day runs produce identical state |
 | Diff hygiene | pass; `git diff --check` |
 
@@ -46,6 +47,8 @@ The implementation and tests use all 12 rows, including corrupted snapshots.
 - Authenticated loopback-only HTTP server on an ephemeral port.
 - Production read-only Lua hello bridge and shared transport.
 - Schema dump, core export/timing, fixtures probe, and persistence proof scripts.
+- Machine-readable persistence-cycle history and a tested Phase 0 evaluator that
+  keeps partial, concerning, malformed, or missing evidence blocking.
 - Build-sensitive offsets isolated to `bridge/readers/fixtures_offsets.lua`.
 - Host-recorded build guard rejects unknown FC/Live Editor pairs before pointer reads.
 - Chunked snapshot protocol with duplicate, ordering, size, and checksum protection.
@@ -190,6 +193,20 @@ does not present the shell as a working import.
     exercise it. The server now accepts a test/diagnostic port override, leaves no
     handshake after `EADDRINUSE`, and can retry cleanly after the port is released;
     production still requests an ephemeral loopback port.
+24. The original spike report could say “Proceed to Phase 1” when rows were only
+    `PARTIAL` or `CONCERN`; it treated one hello as stable restart identity, never
+    consumed step 06 durability results, and omitted the required 20 clean cycles.
+    The server now versions hello evidence, step 06 emits and appends strict
+    same-career restore records, and a tested eleven-gate evaluator requires every
+    doc 00 technical question and doc 06 safeguard to be `PASS`. Evidence files
+    are versioned and must agree on the save UID, preventing stale mock output or
+    files from different careers from composing a false pass.
+    A compatible Windows FC/Live Editor pair is itself a gate, and all artifacts
+    must also agree on the Live Editor version.
+25. The packaged bridge installer pointed at a resources directory that the
+    desktop build never populated. Runtime asset copying now includes both the
+    immutable migrations and the complete Lua bridge tree beside Electron main;
+    startup fails loudly if the installer entry point is absent.
 
 ## Remaining critical path
 

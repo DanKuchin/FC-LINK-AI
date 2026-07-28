@@ -137,17 +137,21 @@ for _, test in ipairs(TESTS) do
 end
 
 local d = GetCurrentDate()
+local cycle_id = string.format('%d-%d', os.time(), math.floor(os.clock() * 1000))
 local f = io.open(MARKER, 'w+')
 assert(f, 'cannot write marker file ' .. MARKER)
 f:write(encode({
+  cycle_id = cycle_id,
   written_at_game_date = string.format('%04d-%02d-%02d', d.year, d.month, d.day),
   save_uid = save_uid,
   le_version = LE_VERSION or 'unknown',
+  test_count = #results,
   tests = results,
 }))
 f:close()
 
 say('  marker written: ' .. MARKER)
+say('  cycle id     : ' .. cycle_id)
 say('─────────────────────────────────────────────')
 say('  NEXT, in order — none of these steps is optional:')
 say('   1. Save your career in-game.')

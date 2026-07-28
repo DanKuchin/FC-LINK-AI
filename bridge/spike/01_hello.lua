@@ -86,6 +86,7 @@ if in_career then
 end
 
 local payload = {
+  recorder_version = 2,
   protocol = 1,
   kind = 'hello',
   le_version = le_version,

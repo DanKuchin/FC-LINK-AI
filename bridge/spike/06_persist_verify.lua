@@ -17,12 +17,43 @@ require 'imports/other/helpers'
 
 local OUT_DIR = (os.getenv('LOCALAPPDATA') or 'C:') .. '\\Tenure\\spike'
 local MARKER = OUT_DIR .. '\\persist_test.json'
+local RESULT = OUT_DIR .. '\\persist_result.json'
+local HISTORY = OUT_DIR .. '\\persist_history.ndjson'
 
 assert(IsInCM(), 'Run this in career mode — load the SAME career you tested.')
 
 local function say(m)
   print(m)
   if LOGGER then LOGGER:LogInfo('[tenure] ' .. m) end
+end
+
+local function esc(s)
+  return (tostring(s):gsub('[%c"\\]', function(c)
+    if c == '"' then return '\\"' end
+    if c == '\\' then return '\\\\' end
+    return string.format('\\u%04x', string.byte(c))
+  end))
+end
+
+local function encode(v)
+  local t = type(v)
+  if t == 'nil' then return 'null' end
+  if t == 'boolean' then return tostring(v) end
+  if t == 'number' then return string.format('%.14g', v) end
+  if t == 'string' then return '"' .. esc(v) .. '"' end
+  if t == 'table' then
+    local parts = {}
+    if #v > 0 then
+      for i = 1, #v do parts[#parts + 1] = encode(v[i]) end
+      return '[' .. table.concat(parts, ',') .. ']'
+    end
+    local keys = {}
+    for k in pairs(v) do keys[#keys + 1] = tostring(k) end
+    table.sort(keys)
+    for _, k in ipairs(keys) do parts[#parts + 1] = '"' .. esc(k) .. '":' .. encode(v[k]) end
+    return '{' .. table.concat(parts, ',') .. '}'
+  end
+  return 'null'
 end
 
 -- ── read the marker (small, known shape — matched rather than fully parsed) ──
@@ -32,6 +63,8 @@ local raw = mf:read('*a')
 mf:close()
 
 local marker_uid = raw:match('"save_uid"%s*:%s*"([^"]*)"') or ''
+local cycle_id = raw:match('"cycle_id"%s*:%s*"([^"]+)"') or ''
+local marker_test_count = tonumber(raw:match('"test_count"%s*:%s*(%d+)')) or 0
 local current_uid = ''
 pcall(function() current_uid = GetSaveUID() end)
 
@@ -54,7 +87,7 @@ end
 -- Each test object was written in a stable order by step 05, so a linear scan
 -- over the marker text is enough to recover them without a JSON parser.
 local tests = {}
-for chunk in raw:gmatch('%b{}') do
+for chunk in raw:gmatch('({[^{}]-"key"%s*:%s*{[^{}]-}[^{}]-})') do
   local tbl = chunk:match('"table"%s*:%s*"([^"]+)"')
   local field = chunk:match('"field"%s*:%s*"([^"]+)"')
   local original = tonumber(chunk:match('"original"%s*:%s*(-?[%d%.eE+]+)'))
@@ -71,6 +104,9 @@ for chunk in raw:gmatch('%b{}') do
 end
 
 assert(#tests > 0, 'could not read any tests from the marker file — was step 05 interrupted?')
+assert(#tests == marker_test_count,
+  string.format('marker contains %d test(s), but only %d were recoverable; refusing partial evidence',
+    marker_test_count, #tests))
 say(string.format('  recovered %d test(s) from the marker', #tests))
 say('')
 
@@ -79,6 +115,7 @@ local summary = {}
 
 for _, t in ipairs(tests) do
   local status, observed = 'MISSING', nil
+  local restore_ok = false
 
   local ok, err = pcall(function()
     local tbl = LE.db:GetTable(t.table)
@@ -105,6 +142,7 @@ for _, t in ipairs(tests) do
     tbl:SetRecordFieldValue(found, t.field, t.original)
     local after = tbl:GetRecordFieldValue(found, t.field)
     assert(after == t.original, 'restore failed: value is now ' .. tostring(after))
+    restore_ok = true
   end)
 
   local line = string.format('  %-24s %-18s %-16s expected %s, found %s',
@@ -112,7 +150,14 @@ for _, t in ipairs(tests) do
   if not ok then line = line .. '   [' .. tostring(err) .. ']' end
   say(line)
 
-  summary[#summary + 1] = { table = t.table, status = status, error = (not ok) and tostring(err) or nil }
+  summary[#summary + 1] = {
+    table = t.table,
+    field = t.field,
+    status = status,
+    observed = observed,
+    restore_ok = restore_ok,
+    error = (not ok) and tostring(err) or nil,
+  }
 end
 
 -- ── verdict ─────────────────────────────────────────────────────────────────
@@ -122,6 +167,34 @@ for _, s in ipairs(summary) do
   elseif s.status == 'REVERTED' then reverted = reverted + 1
   else broken = broken + 1 end
 end
+
+local all_restored = true
+for _, s in ipairs(summary) do
+  if not s.restore_ok then all_restored = false break end
+end
+local d = GetCurrentDate()
+local evidence = {
+  recorder_version = 2,
+  record = 'persistence_cycle',
+  cycle_id = cycle_id,
+  career_loaded = IsInCM(),
+  save_uid = current_uid,
+  le_version = LE_VERSION or 'unknown',
+  marker_save_uid = marker_uid,
+  same_save_uid = marker_uid ~= '' and marker_uid == current_uid,
+  verified_at_game_date = string.format('%04d-%02d-%02d', d.year, d.month, d.day),
+  all_originals_restored = all_restored,
+  tests = summary,
+}
+local encoded = encode(evidence)
+local rf = io.open(RESULT, 'w+')
+assert(rf, 'cannot write persistence result ' .. RESULT)
+rf:write(encoded)
+rf:close()
+local hf = io.open(HISTORY, 'a+')
+assert(hf, 'cannot append persistence history ' .. HISTORY)
+hf:write(encoded .. '\n')
+hf:close()
 
 say('')
 say('─────────────────────────────────────────────')
@@ -135,5 +208,7 @@ else
   say('  a writable table is found. Record it and re-scope deliberately.')
 end
 say('  Originals have been restored. Save the career to make that stick.')
+say('  Machine-readable result: ' .. RESULT)
+say('  Cycle history appended: ' .. HISTORY)
 say('  Now write up docs/persistence-<build>.md.')
 say('─────────────────────────────────────────────')

@@ -1,26 +1,32 @@
 # Phase 0 — spike report
 
-Generated 2026-07-28T14:55:49.325Z. Regenerate with `node spike/report.mjs`.
+Generated 2026-07-28T18:17:09.895Z. Regenerate with `node spike/report.mjs`.
 
 ## Environment
 
-- Game: `D:\Steam\steamapps\common\FC 26`
-- Build: **1.0.138.57785** (Steam edition)
-- Live Editor: `C:\FC 26 Live Editor`
-- Required LE for this build: **unknown to the installed LE**
+- not detected — run `node spike/detect.mjs`
 
-## The seven checks
+## Phase 0 gates
+
+This table combines the seven technical questions in doc 00 §3.9 with the
+additional measurable exit safeguards in doc 06. Only an all-PASS table
+authorises Phase 1; `CONCERN`, `FAIL`, and `UNKNOWN` all remain blocking.
 
 | | Check | Result | Detail |
 |---|---|---|---|
-| ⚪ | 1. Career detected and save UID stable | **UNKNOWN** | spike 01 not run |
-| ⚪ | 2. Transport works (Lua → local HTTP server) | **UNKNOWN** | spike 01 not run |
-| ⚪ | 3. Real schema captured | **UNKNOWN** | spike 02 not run |
-| ⚪ | 4. Snapshot cost acceptable (< 90 s projected import) | **UNKNOWN** | spike 03 not run |
-| ⚪ | 5. Fixtures / results readable on this build | **UNKNOWN** | spike 04 not run |
-| ⚪ | 6. Match extraction by snapshot diff | **UNKNOWN** | requires two exports either side of a played match — Ticket 26 |
-| ⚪ | 7. A write proven durable across a restart | **UNKNOWN** | spike 05/06 not run |
+| ⚪ | Supported Windows FC / Live Editor pair detected | **UNKNOWN** | run spike detect and spike 01 on the Windows FC machine |
+| ⚪ | Real schema captured | **UNKNOWN** | run spike 02 |
+| ⚪ | Per-table persistence proven across a full restart | **UNKNOWN** | run spikes 05 and 06 |
+| ⚪ | Fixtures and standings probed on this build | **UNKNOWN** | run spike 04 |
+| ⚪ | One real played match extracted by snapshot diff | **UNKNOWN** | record before/after exports and complete Ticket 26 |
+| ⚪ | HTTP works from the game process to loopback | **UNKNOWN** | run spike 01 with the server active |
+| ⚪ | At least 5,000 players exported within the 90 s import budget | **UNKNOWN** | run spike 03 and retain timing.json |
+| ⚪ | TransferPlayer write is durable with backup/restore proven first | **UNKNOWN** | no supervised TransferPlayer proof recorded |
+| ⚪ | Career detected and save UID stable across a complete restart | **UNKNOWN** | requires matching hello and spike 06 restart evidence |
+| ⚪ | One played result read back | **UNKNOWN** | run spike 04 |
+| ⚪ | Zero corruption across 20 write/save/restart/restore cycles | **UNKNOWN** | 0/20 valid unique cycle(s); 0 invalid |
 
 ## Verdict
 
-7 check(s) still unanswered: 1, 2, 3, 4, 5, 6, 7.
+**Do not claim Phase 0 complete. 11 gate(s) are not PASS:** environment, schema, persistence, fixtures, match_diff, transport, snapshot_cost, transfer_write, stable_uid, played_result, clean_cycles.
+Re-read the abort conditions in `docs/08-distribution-legal-business-risk.md` Part F before schema-dependent implementation.

@@ -135,7 +135,9 @@ if (build && leInfo) {
 }
 
 const detected = {
+  recorder_version: 2,
   detected_at: new Date().toISOString(),
+  platform: process.platform,
   game_dir: gameDir,
   game_build: build,
   is_steam: gameDir ? fs.existsSync(path.join(gameDir, 'steam_appid.txt')) : null,

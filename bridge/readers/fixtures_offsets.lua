@@ -233,11 +233,14 @@ end
 
 -- ── write output ────────────────────────────────────────────────────────────
 local d = GetCurrentDate()
+local save_uid = ''
+pcall(function() save_uid = GetSaveUID() end)
 local path = string.format('%s\\fixtures_%04d%02d%02d.ndjson', OUT_DIR, d.year, d.month, d.day)
 local out = io.open(path, 'w+')
 if out then
   out:write(encode({
-    record = 'meta', verdict = verdict, le_version = LE_VERSION or 'unknown',
+    recorder_version = 2, record = 'meta', verdict = verdict,
+    save_uid = save_uid, le_version = LE_VERSION or 'unknown',
     in_game_date = string.format('%04d-%02d-%02d', d.year, d.month, d.day),
     in_game_date_int = d:ToInt(),
     checks = checks, problems = problems,

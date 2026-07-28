@@ -73,6 +73,8 @@ local function say(m)
 end
 
 local d = GetCurrentDate()
+local save_uid = ''
+pcall(function() save_uid = GetSaveUID() end)
 local dir = string.format('%s\\export_%04d%02d%02d', OUT_ROOT, d.year, d.month, d.day)
 -- Lua has no portable mkdir; the spike server pre-creates OUT_ROOT, so fall back to it.
 local function open_out(basename)
@@ -219,7 +221,9 @@ local projected_names_ms = names_bench.ms_per_lookup and
     math.floor(names_bench.ms_per_lookup * player_rows) or nil
 
 local timing = {
+  recorder_version = 2,
   record = 'timing',
+  save_uid = save_uid,
   le_version = LE_VERSION or 'unknown',
   in_game_date = string.format('%04d-%02d-%02d', d.year, d.month, d.day),
   tables = results,

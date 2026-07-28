@@ -13,7 +13,7 @@ Read this file first. It is the map, the reasoning that didn't fit in the docs, 
 > immediately after this file for the current evidence and remaining gates. The
 > Phase 0 Windows/FC evidence blocker and every “do not build” boundary in this
 > handoff remain authoritative.
-> Current local evidence: 28 test files / 180 tests, with desktop startup
+> Current local evidence: 29 test files / 186 tests, with desktop startup
 > checkpointing and migrating a schema-v1 career through schema v4.
 
 ---
