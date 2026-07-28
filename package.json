@@ -3,14 +3,23 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Companion management game for EA Sports FC 26 (offline career). Phase 0 spike.",
+  "description": "Companion management game for EA Sports FC 26 (offline career).",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "check": "pnpm typecheck && pnpm test",
     "spike:server": "node spike/server.mjs",
     "spike:install": "powershell -ExecutionPolicy Bypass -File spike/install-scripts.ps1",
     "spike:detect": "node spike/detect.mjs",
     "spike:report": "node spike/report.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   }
 }

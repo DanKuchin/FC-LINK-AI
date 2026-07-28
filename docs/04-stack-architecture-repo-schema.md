@@ -30,7 +30,7 @@ The Tauri argument (small, fast, modern) is real but it buys resources this prod
 
 | Concern | Choice | Why |
 |---|---|---|
-| Database | SQLite (`better-sqlite3`), WAL mode | Synchronous API suits a tick-based sim; single-file saves are trivially checkpointable via `VACUUM INTO` |
+| Database | SQLite (`node:sqlite`), WAL mode — **superseded by [ADR 0001](adr/0001-sqlite-driver.md)**, originally `better-sqlite3` | Synchronous API suits a tick-based sim; single-file saves are trivially checkpointable via `VACUUM INTO`. Built-in means no native compilation and no `electron-rebuild`; the driver sits behind an adapter so the choice stays reversible |
 | Migrations | Hand-rolled numbered SQL migrations + a `save_migrations` table | Boring, inspectable, reversible. No ORM magic between the dev and their save format |
 | Query layer | Kysely (typed SQL builder) — **not** a full ORM | Types without hiding the SQL. The sim's batch passes must stay raw `UPDATE` |
 | State (UI) | Zustand + TanStack Query over IPC | Small, obvious, no boilerplate |
