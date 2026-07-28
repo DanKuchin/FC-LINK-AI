@@ -315,7 +315,13 @@ function MatchPrep({ onCheckpoint }: { readonly onCheckpoint: () => Promise<void
   );
 }
 
-type SquadSortKey = 'name' | 'position' | 'age' | 'ability' | 'fitness' | 'contract';
+export type SquadSortKey =
+  | 'name'
+  | 'position'
+  | 'age'
+  | 'ability'
+  | 'fitness'
+  | 'contract';
 type Density = 'comfortable' | 'compact' | 'dense';
 
 function range(low: number | null, high: number | null): string {
@@ -337,21 +343,29 @@ function sortValue(player: SquadPlayerView, key: SquadSortKey): string | number 
   return player.contractEnd ?? Number.MAX_SAFE_INTEGER;
 }
 
-function Squad({ data }: { readonly data: SquadView | null }) {
+export function sortSquadPlayers(
+  players: readonly SquadPlayerView[],
+  key: SquadSortKey,
+  ascending: boolean,
+): SquadPlayerView[] {
+  return [...players].sort((left, right) => {
+    const a = sortValue(left, key);
+    const b = sortValue(right, key);
+    const order = typeof a === 'string' && typeof b === 'string'
+      ? a.localeCompare(b)
+      : Number(a) - Number(b);
+    return ascending ? order : -order;
+  });
+}
+
+export function Squad({ data }: { readonly data: SquadView | null }) {
   const [sortKey, setSortKey] = useState<SquadSortKey>('position');
   const [ascending, setAscending] = useState(true);
   const [density, setDensity] = useState<Density>('comfortable');
   const players = data?.source === 'career' ? data.players : sampleSquad;
   const [selectedId, setSelectedId] = useState(players[0]?.id ?? null);
   const selected = players.find((player) => player.id === selectedId) ?? players[0] ?? null;
-  const sorted = [...players].sort((left, right) => {
-    const a = sortValue(left, sortKey);
-    const b = sortValue(right, sortKey);
-    const order = typeof a === 'string' && typeof b === 'string'
-      ? a.localeCompare(b)
-      : Number(a) - Number(b);
-    return ascending ? order : -order;
-  });
+  const sorted = sortSquadPlayers(players, sortKey, ascending);
 
   const chooseSort = (key: SquadSortKey) => {
     if (sortKey === key) setAscending((current) => !current);

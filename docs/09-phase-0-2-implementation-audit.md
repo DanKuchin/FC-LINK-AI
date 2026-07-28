@@ -24,14 +24,14 @@ database.
 | Check | Result |
 |---|---|
 | `pnpm build` | pass; renderer, Electron main and CommonJS preload built |
-| `pnpm check` | pass; 27 files, 177 tests |
-| Electron cold-boot smoke | pass; renderer + preload + typed IPC + Electron `node:sqlite` + live Doctor + Squad trust surface |
+| `pnpm check` | pass; 28 files, 180 tests |
+| Electron cold-boot smoke | pass; no renderer/preload errors; typed IPC + Electron `node:sqlite` + live Doctor + accessible Squad trust surface |
 | Process killed mid-day transaction | pass; prior day restored, SQLite integrity clean |
 | Migration corpus | pass; desktop startup checkpoints and opens schema v1 at v4 with career row preserved |
 | Checkpoint integrity | pass; byte-identical database restore, bundled raw evidence, no partial failed checkpoint |
 | Manifest override | pass; validate-before-replace, downgrade refusal, damaged-override fallback |
 | Sync Doctor | pass; all 12 conditions in doc 08 A5 exercised |
-| Loopback bridge | pass; token rejection/acceptance, hello/event/log/ack/commands/chunks |
+| Loopback bridge | pass; token rejection/acceptance, clean port-collision recovery, hello/event/log/ack/commands/chunks |
 | Determinism | pass; two 365-day runs produce identical state |
 | Diff hygiene | pass; `git diff --check` |
 
@@ -73,7 +73,7 @@ machine. Never arm the write probe against a career that matters.
 
 | Deliverable | Status | Evidence / blocker |
 |---|---|---|
-| Electron shell | implemented | production build and self-terminating cold-boot smoke pass |
+| Electron shell | implemented | production build; self-terminating cold boot fails on renderer/preload errors |
 | Typed IPC boundary | implemented | sandbox + context isolation; renderer boundary test |
 | SQLite + migrations | implemented | Electron runtime check; startup pre-migration checkpoint; packaged SQL assets; v1 → v4 desktop test |
 | Checkpoint/restore core | implemented | database + latest raw snapshot, checksums, integrity check, safety copy, retention tests |
@@ -81,7 +81,7 @@ machine. Never arm the write probe against a career that matters.
 | Bridge installer | implemented locally | diff preview, SHA-256 verification, tamper conflict and explicit overwrite consent |
 | Personality generation | implemented | five independently seeded fact-driven traits, explanations and population-direction tests |
 | Pre-match launch gate | implemented | verified checkpoint mandatory; current snapshot or explicit manual-mode choice |
-| Squad + player profile | internal career adapter implemented | sortable, three densities, ranges, contract/condition/personality evidence; FC population waits for schema |
+| Squad + player profile | internal career adapter implemented | component + accessibility contract; six sort keys, three densities, ranges, contract/condition/personality evidence; FC population waits for schema |
 | Result confirmation screen | manual path implemented | full score/player-line form, explicit confirmation, `user_entered` provenance, causal event, durable checkpoint retry after restart |
 | Import pipeline | blocked correctly | requires recorded real schema |
 | Snapshot diffing | blocked correctly | requires recorded before/after fixtures |
@@ -180,6 +180,16 @@ does not present the shell as a working import.
     its SQL files and startup never invoked it. Builds now copy the immutable
     migration corpus, and the desktop creates a verified pre-migration checkpoint
     before opening a v1 career at v4.
+22. Ticket 20 required a cold boot with no console errors, but the smoke handler
+    only printed renderer errors and still returned success. Renderer console and
+    preload errors now fail the run, while the same built-app check asserts the
+    navigation, main landmark, named sort buttons, labelled density control,
+    keyboard player controls, and live profile region. A component contract suite
+    independently covers career evidence and all six sort directions.
+23. Ticket 4 named port-collision handling, but an ephemeral-only test could not
+    exercise it. The server now accepts a test/diagnostic port override, leaves no
+    handshake after `EADDRINUSE`, and can retry cleanly after the port is released;
+    production still requests an ephemeral loopback port.
 
 ## Remaining critical path
 

@@ -117,4 +117,25 @@ describe('loopback bridge server', () => {
     ]);
     expect(received.at(-1)?.value).toMatchObject({ payload, checksum });
   });
+
+  it('fails a fixed-port collision without publishing a handshake and can retry', async () => {
+    const first = new BridgeServer({ dataDirectory: temporaryDirectory() });
+    servers.push(first);
+    const started = await first.start();
+    const occupiedPort = Number(new URL(started.handshake.base_url).port);
+    const secondDirectory = temporaryDirectory();
+    const second = new BridgeServer({
+      dataDirectory: secondDirectory,
+      port: occupiedPort,
+    });
+    servers.push(second);
+
+    await expect(second.start()).rejects.toMatchObject({ code: 'EADDRINUSE' });
+    expect(second.address).toBeUndefined();
+    expect(fs.existsSync(path.join(secondDirectory, 'bridge', 'handshake.json'))).toBe(false);
+
+    await first.close();
+    const retried = await second.start();
+    expect(retried.handshake.port).toBe(occupiedPort);
+  });
 });

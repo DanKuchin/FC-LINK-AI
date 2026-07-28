@@ -52,6 +52,8 @@ export interface BridgeServerOptions {
   readonly handlers?: BridgeServerHandlers;
   readonly maxBodyBytes?: number;
   readonly now?: () => number;
+  /** Test/diagnostic override. Production omits this and binds an ephemeral port. */
+  readonly port?: number;
 }
 
 export interface StartedBridgeServer {
@@ -126,6 +128,10 @@ export class BridgeServer {
 
   async start(): Promise<StartedBridgeServer> {
     if (this.server !== undefined) throw new Error('bridge server is already started');
+    const port = this.options.port ?? 0;
+    if (!Number.isInteger(port) || port < 0 || port > 65_535) {
+      throw new Error('bridge port must be an integer from 0 to 65535');
+    }
     const token = crypto.randomBytes(32).toString('hex');
     const server = http.createServer((request, response) => {
       void this.handle(request, response, token);
@@ -134,7 +140,7 @@ export class BridgeServer {
     try {
       await new Promise<void>((resolve, reject) => {
         server.once('error', reject);
-        server.listen(0, '127.0.0.1', () => {
+        server.listen(port, '127.0.0.1', () => {
           server.off('error', reject);
           resolve();
         });
@@ -146,7 +152,11 @@ export class BridgeServer {
       return this.started;
     } catch (error) {
       this.server = undefined;
-      server.close();
+      try {
+        server.close();
+      } catch {
+        // A listen failure such as EADDRINUSE leaves nothing open to close.
+      }
       throw error;
     }
   }

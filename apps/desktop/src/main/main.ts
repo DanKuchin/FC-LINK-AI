@@ -61,6 +61,7 @@ async function sqliteAvailable(): Promise<boolean> {
 }
 
 async function createWindow(): Promise<BrowserWindow> {
+  let rendererFailure: string | null = null;
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -82,8 +83,11 @@ async function createWindow(): Promise<BrowserWindow> {
   if (smokeTest) {
     window.webContents.on('console-message', (details) => {
       if (details.level === 'error') {
-        process.stderr.write(`[renderer] ${details.message}\n`);
+        rendererFailure ??= `console: ${details.message}`;
       }
+    });
+    window.webContents.on('preload-error', (_event, preloadPath, error) => {
+      rendererFailure ??= `preload ${preloadPath}: ${error.message}`;
     });
   }
   await window.loadFile(path.join(directory, '../../dist/index.html'));
@@ -98,7 +102,20 @@ async function createWindow(): Promise<BrowserWindow> {
           table: document.querySelector('table caption')?.textContent,
           sortableColumns: document.querySelectorAll('th[aria-sort]').length,
           densityControl: document.querySelector('[data-density] select') !== null,
-          playerProfile: document.querySelector('.player-profile h2')?.textContent
+          playerProfile: document.querySelector('.player-profile h2')?.textContent,
+          accessibility: {
+            mainLandmarks: document.querySelectorAll('main').length,
+            primaryNavigation: document.querySelector('nav[aria-label="Primary"]') !== null,
+            namedSortButtons: Array.from(document.querySelectorAll('th[aria-sort] button'))
+              .every((button) => (button.textContent ?? '').trim().length > 0),
+            labelledDensity: (document.querySelector('[data-density] select')?.labels.length ?? 0) > 0,
+            livePlayerProfile: document.querySelector('.player-profile[aria-live="polite"]') !== null,
+            keyboardPlayerLinks: Array.from(document.querySelectorAll('.player-link'))
+              .every((control) =>
+                control.tagName === 'BUTTON' &&
+                control.hasAttribute('aria-pressed') &&
+                (control.textContent ?? '').trim().length > 0)
+          }
         }
       }))`,
       true,
@@ -115,9 +132,19 @@ async function createWindow(): Promise<BrowserWindow> {
         readonly sortableColumns: number;
         readonly densityControl: boolean;
         readonly playerProfile?: string;
+        readonly accessibility: {
+          readonly mainLandmarks: number;
+          readonly primaryNavigation: boolean;
+          readonly namedSortButtons: boolean;
+          readonly labelledDensity: boolean;
+          readonly livePlayerProfile: boolean;
+          readonly keyboardPlayerLinks: boolean;
+        };
       };
     };
+    const accessibility = smokeState.squadSurface?.accessibility;
     if (
+      rendererFailure !== null ||
       !smokeState.preloadReady ||
       smokeState.versions?.sqliteAvailable !== true ||
       smokeState.doctorConditions?.length !== 12 ||
@@ -125,15 +152,21 @@ async function createWindow(): Promise<BrowserWindow> {
       smokeState.squadSurface?.table !== 'Managed first-team squad' ||
       smokeState.squadSurface.sortableColumns < 6 ||
       !smokeState.squadSurface.densityControl ||
-      !smokeState.squadSurface.playerProfile
+      !smokeState.squadSurface.playerProfile ||
+      accessibility?.mainLandmarks !== 1 ||
+      !accessibility.primaryNavigation ||
+      !accessibility.namedSortButtons ||
+      !accessibility.labelledDensity ||
+      !accessibility.livePlayerProfile ||
+      !accessibility.keyboardPlayerLinks
     ) {
       process.stderr.write(
-        'TENURE_SMOKE_FAILED: preload, node:sqlite, live Doctor, or Squad trust surface is unavailable\n',
+        `TENURE_SMOKE_FAILED: ${rendererFailure ?? 'desktop trust or accessibility surface is unavailable'}\n`,
       );
       app.exit(1);
     } else {
       process.stdout.write(
-        'TENURE_SMOKE_OK: renderer, typed IPC, node:sqlite, live Doctor, and Squad trust surface are available\n',
+        'TENURE_SMOKE_OK: renderer has no errors; typed IPC, node:sqlite, live Doctor, and accessible Squad trust surface are available\n',
       );
       window.close();
       app.quit();
