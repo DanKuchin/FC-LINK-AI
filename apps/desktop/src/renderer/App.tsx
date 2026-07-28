@@ -3,11 +3,15 @@ import type {
   BridgeInstallPreview,
   CheckpointSummary,
   EnvironmentSummary,
+  FixturePlayer,
+  ManualResultPlayerLine,
+  MatchPrepState,
+  PendingFixture,
   SyncStatus,
   VersionSurface,
 } from '../shared/ipc.js';
 
-type Screen = 'squad' | 'result' | 'doctor';
+type Screen = 'squad' | 'prepare' | 'result' | 'doctor';
 
 const sampleSquad = [
   ['M. Hale', 'GK', '29', '78–81', '100', 'Calm', '2028'],
@@ -57,6 +61,10 @@ export function App() {
     }
   };
 
+  const refreshCheckpoints = async () => {
+    setCheckpoints(await window.tenure.listCheckpoints());
+  };
+
   const browse = async (kind: 'game' | 'liveEditor') => {
     const detected = kind === 'game'
       ? await window.tenure.browseForGame()
@@ -99,6 +107,9 @@ export function App() {
           <button className={screen === 'result' ? 'active' : ''} onClick={() => setScreen('result')}>
             Result
           </button>
+          <button className={screen === 'prepare' ? 'active' : ''} onClick={() => setScreen('prepare')}>
+            Match prep
+          </button>
           <button className={screen === 'doctor' ? 'active' : ''} onClick={() => setScreen('doctor')}>
             Sync Doctor
           </button>
@@ -110,7 +121,8 @@ export function App() {
           <strong>{sync.label}</strong><span>{sync.detail}</span>
         </button>
         {screen === 'squad' && <Squad />}
-        {screen === 'result' && <Result />}
+        {screen === 'prepare' && <MatchPrep onCheckpoint={refreshCheckpoints} />}
+        {screen === 'result' && <Result onCommitted={refreshCheckpoints} />}
         {screen === 'doctor' && (
           <Doctor
             sync={sync}
@@ -128,6 +140,66 @@ export function App() {
         )}
       </main>
     </div>
+  );
+}
+
+function MatchPrep({ onCheckpoint }: { readonly onCheckpoint: () => Promise<void> }) {
+  const [manualMode, setManualMode] = useState(false);
+  const [state, setState] = useState<MatchPrepState | null>(null);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    void window.tenure.matchPrepState(manualMode).then(setState);
+  }, [manualMode]);
+
+  const checkpoint = async () => {
+    try {
+      setState(await window.tenure.createPreMatchCheckpoint(manualMode));
+      await onCheckpoint();
+      setMessage('Verified pre-match checkpoint created.');
+    } catch (error) {
+      setMessage(`Checkpoint failed: ${(error as Error).message}`);
+    }
+  };
+
+  return (
+    <section className="paper narrow">
+      <header>
+        <p className="eyebrow">Match preparation</p>
+        <h1>Protect the evidence.</h1>
+        <p className="lede">FC launch authorization requires a verified recovery point and either a current snapshot or an explicit manual-result choice.</p>
+      </header>
+      <div className="checks">
+        <article className={`check ${state?.checkpointVerified ? 'ok' : 'warning'}`}>
+          <span className="state-mark">{state?.checkpointVerified ? '✓' : '!'}</span>
+          <div><strong>Pre-match checkpoint</strong><p>{state?.checkpointVerified ? 'Verified for the current career day.' : 'Create the recovery point before launch.'}</p></div>
+          <button className="secondary" onClick={() => void checkpoint()}>Create checkpoint</button>
+        </article>
+        <article className={`check ${state?.snapshotState === 'ready' ? 'ok' : 'warning'}`}>
+          <span className="state-mark">{state?.snapshotState === 'ready' ? '✓' : '!'}</span>
+          <div><strong>Snapshot evidence</strong><p>{state?.snapshotState ?? 'checking'} — {state?.decision.reason}</p></div>
+        </article>
+      </div>
+      <label className="confirm-line">
+        <input type="checkbox" checked={manualMode} onChange={(event) => setManualMode(event.target.checked)} />
+        Use manual-result mode for this match. I understand no snapshot-derived player lines will be claimed.
+      </label>
+      <div className="launch-decision">
+        <strong>{state?.decision.allowed ? 'Launch gate cleared' : 'Launch blocked'}</strong>
+        <p>{state?.decision.reason}</p>
+        {state !== null && !state.decision.allowed ? <p>{state.decision.action}</p> : null}
+      </div>
+      <button
+        className="launch-button"
+        disabled={!state?.decision.allowed}
+        onClick={() => setMessage(
+          'Launch authorization recorded. Start FC with the configured Live Editor launcher.',
+        )}
+      >
+        Continue to Live Editor
+      </button>
+      <p className="recovery-message" aria-live="polite">{message}</p>
+    </section>
   );
 }
 
@@ -150,19 +222,161 @@ function Squad() {
   );
 }
 
-function Result() {
+interface EditablePlayerLine extends FixturePlayer, ManualResultPlayerLine {}
+
+function Result({ onCommitted }: { readonly onCommitted: () => Promise<void> }) {
+  const [fixtures, setFixtures] = useState<readonly PendingFixture[]>([]);
+  const [fixtureId, setFixtureId] = useState<number | null>(null);
+  const [homeGoals, setHomeGoals] = useState('0');
+  const [awayGoals, setAwayGoals] = useState('0');
+  const [homePens, setHomePens] = useState('');
+  const [awayPens, setAwayPens] = useState('');
+  const [lines, setLines] = useState<readonly EditablePlayerLine[]>([]);
+  const [confirmed, setConfirmed] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const reloadFixtures = async () => {
+    const pending = await window.tenure.pendingFixtures();
+    setFixtures(pending);
+    setFixtureId((current) =>
+      current !== null && pending.some((fixture) => fixture.id === current)
+        ? current
+        : (pending[0]?.id ?? null));
+  };
+
+  useEffect(() => {
+    void reloadFixtures();
+  }, []);
+
+  useEffect(() => {
+    if (fixtureId === null) {
+      setLines([]);
+      return;
+    }
+    void window.tenure.fixturePlayers(fixtureId).then((players) => {
+      setLines(players.map((player) => ({
+        ...player,
+        playerId: player.id,
+        appearances: 0,
+        goals: 0,
+        assists: 0,
+        yellow: 0,
+        red: 0,
+        cleanSheet: 0,
+        rating: null,
+      })));
+    });
+  }, [fixtureId]);
+
+  const updateLine = (playerId: number, patch: Partial<ManualResultPlayerLine>) => {
+    setLines((current) => current.map((line) =>
+      line.playerId === playerId ? { ...line, ...patch } : line));
+  };
+
+  const commit = async () => {
+    if (fixtureId === null || !confirmed) return;
+    try {
+      const result = await window.tenure.commitManualResult({
+        fixtureId,
+        homeGoals: Number(homeGoals),
+        awayGoals: Number(awayGoals),
+        ...(homePens === '' ? {} : { homePens: Number(homePens) }),
+        ...(awayPens === '' ? {} : { awayPens: Number(awayPens) }),
+        playerLines: lines
+          .filter((line) =>
+            line.appearances === 1 ||
+            line.goals > 0 ||
+            line.assists > 0 ||
+            line.yellow > 0 ||
+            line.red > 0 ||
+            line.cleanSheet === 1 ||
+            line.rating !== null)
+          .map((line) => ({
+            playerId: line.playerId,
+            appearances: line.appearances,
+            goals: line.goals,
+            assists: line.assists,
+            yellow: line.yellow,
+            red: line.red,
+            cleanSheet: line.cleanSheet,
+            rating: line.rating,
+          })),
+      });
+      setMessage(
+        `Result ${result.matchResultId} confirmed as user-entered. ` +
+        `Checkpoint ${result.checkpointId} protects the previous state.`,
+      );
+      setConfirmed(false);
+      await Promise.all([reloadFixtures(), onCommitted()]);
+    } catch (error) {
+      setMessage(`Result was not committed: ${(error as Error).message}`);
+    }
+  };
+
+  const selected = fixtures.find((fixture) => fixture.id === fixtureId);
   return (
-    <section className="paper narrow">
+    <section className="paper">
       <header>
         <p className="eyebrow">Post-match review</p>
         <h1>Nothing commits unseen.</h1>
-        <p className="lede">A before/after snapshot pair will appear here for confirmation or correction.</p>
+        <p className="lede">Enter the fallback record, review every line, then explicitly confirm it.</p>
       </header>
-      <div className="result-card">
-        <span>Home</span><strong>— : —</strong><span>Away</span>
-      </div>
-      <div className="notice">Match extraction is blocked until a real recorded schema fixture exists. Manual entry remains the designed fallback.</div>
-      <div className="actions"><button disabled>Confirm import</button><button className="secondary">Enter manually</button></div>
+      {fixtures.length === 0 ? (
+        <div className="notice">
+          No pending fixtures exist in the active career. Imported fixtures will appear here;
+          manual result entry remains available when offset reads fail.
+        </div>
+      ) : (
+        <>
+          <label className="field">Fixture
+            <select value={fixtureId ?? ''} onChange={(event) => setFixtureId(Number(event.target.value))}>
+              {fixtures.map((fixture) => (
+                <option value={fixture.id} key={fixture.id}>
+                  {fixture.homeClub} v {fixture.awayClub}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="score-entry">
+            <label>{selected?.homeClub ?? 'Home'}
+              <input type="number" min="0" max="99" value={homeGoals} onChange={(event) => setHomeGoals(event.target.value)} />
+            </label>
+            <strong>:</strong>
+            <label>{selected?.awayClub ?? 'Away'}
+              <input type="number" min="0" max="99" value={awayGoals} onChange={(event) => setAwayGoals(event.target.value)} />
+            </label>
+          </div>
+          <details className="penalties"><summary>Add penalty shootout</summary>
+            <div className="score-entry compact">
+              <input aria-label="Home penalties" type="number" min="0" max="99" value={homePens} onChange={(event) => setHomePens(event.target.value)} />
+              <strong>:</strong>
+              <input aria-label="Away penalties" type="number" min="0" max="99" value={awayPens} onChange={(event) => setAwayPens(event.target.value)} />
+            </div>
+          </details>
+          <div className="player-lines">
+            <div className="line headings">
+              <span>Player</span><span>Played</span><span>G</span><span>A</span><span>YC</span><span>RC</span><span>CS</span><span>Rating</span>
+            </div>
+            {lines.map((line) => (
+              <div className="line" key={line.playerId}>
+                <span>{line.name}<small>{line.side}</small></span>
+                <input aria-label={`${line.name} played`} type="checkbox" checked={line.appearances === 1} onChange={(event) => updateLine(line.playerId, { appearances: event.target.checked ? 1 : 0 })} />
+                {(['goals', 'assists', 'yellow', 'red'] as const).map((field) => (
+                  <input key={field} aria-label={`${line.name} ${field}`} type="number" min="0" max="99" value={line[field]} onChange={(event) => updateLine(line.playerId, { [field]: Number(event.target.value) })} />
+                ))}
+                <input aria-label={`${line.name} clean sheet`} type="checkbox" checked={line.cleanSheet === 1} onChange={(event) => updateLine(line.playerId, { cleanSheet: event.target.checked ? 1 : 0 })} />
+                <input aria-label={`${line.name} rating`} type="number" min="0" max="10" step="0.1" value={line.rating ?? ''} onChange={(event) => updateLine(line.playerId, { rating: event.target.value === '' ? null : Number(event.target.value) })} />
+              </div>
+            ))}
+          </div>
+          <label className="confirm-line">
+            <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
+            I reviewed the score and player lines. Commit this as user-entered evidence.
+          </label>
+          <div className="actions"><button disabled={!confirmed} onClick={() => void commit()}>Confirm manual result</button></div>
+        </>
+      )}
+      <p className="recovery-message" aria-live="polite">{message}</p>
     </section>
   );
 }

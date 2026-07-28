@@ -24,7 +24,7 @@ database.
 | Check | Result |
 |---|---|
 | `pnpm build` | pass; renderer, Electron main and CommonJS preload built |
-| `pnpm check` | pass; 18 files, 130 tests |
+| `pnpm check` | pass; 23 files, 159 tests |
 | Electron cold-boot smoke | pass; renderer + preload + typed IPC + Electron `node:sqlite` |
 | Process killed mid-day transaction | pass; prior day restored, SQLite integrity clean |
 | Migration corpus | pass; schema v1 opens at v3 with career row preserved |
@@ -75,8 +75,10 @@ machine. Never arm the write probe against a career that matters.
 | Checkpoint/restore core | implemented | checksum, integrity check, safety copy, retention tests |
 | FC + Live Editor detection | implemented locally | registry, known-path, manifest and manual-path fixture tests; live Windows validation pending |
 | Bridge installer | implemented locally | diff preview, SHA-256 verification, tamper conflict and explicit overwrite consent |
+| Personality generation | implemented | five independently seeded fact-driven traits, explanations and population-direction tests |
+| Pre-match launch gate | implemented | verified checkpoint mandatory; current snapshot or explicit manual-mode choice |
 | Squad screen | presentation shell | clearly labelled sample data; live data waits for schema |
-| Result confirmation screen | presentation shell | no auto-commit; manual fallback represented |
+| Result confirmation screen | manual path implemented | full score/player-line form, explicit confirmation, `user_entered` provenance and causal event |
 | Import pipeline | blocked correctly | requires recorded real schema |
 | Snapshot diffing | blocked correctly | requires recorded before/after fixtures |
 | Real-match cold-start exit twice | pending | requires Windows FC + completed import/diff |
@@ -121,14 +123,25 @@ does not present the shell as a working import.
 8. Checkpoint restore was a tested library with an empty desktop adapter. The
    Sync Doctor now lists verification state, confirms restore, keeps the
    pre-restore safety copy, and appends restore history.
+9. Manual-result mode had been represented by a decorative button. It now
+   commits a validated score and per-player lines transactionally, records
+   `user_entered` provenance, updates fixture state, and emits the same downstream
+   fact payload as a normalized synced result.
+10. The pre-match rule existed only in prose. A named launch-gate state machine
+    now blocks every missing/stale/corrupt case, requires a current verified
+    checkpoint even in manual mode, and never infers manual consent from failure.
+11. Ticket 17's five hidden traits were absent. Personality generation now uses
+    independent deterministic streams and visible age, potential-gap, reputation,
+    and contract signals, with an explanation for every value.
 
 ## Remaining critical path
 
 1. Run and commit the Phase 0 evidence from a throwaway Windows career.
 2. Review the recorded schema and anonymise the fixture.
 3. Implement mapping/import only against that fixture.
-4. Record pre/post snapshots for a played match and implement the diff.
-5. Wire imported career services into Squad and Result confirmation, then feed
-   live bridge logs and Doctor conditions into diagnostics.
+4. Record pre/post snapshots for a played match, implement the diff, and feed its
+   normalized output through the now-shared confirmation transaction.
+5. Wire imported career services into Squad, then feed live bridge logs and
+   Doctor conditions into diagnostics.
 6. Repeat the real-match flow twice from a cold start.
 7. Re-run this audit; only then mark Phases 0–2 complete.

@@ -13,6 +13,8 @@ import {
   type EnvironmentDetection,
 } from './launcher/detect.js';
 import { CheckpointService } from './services/checkpointService.js';
+import { ResultService } from './services/resultService.js';
+import { MatchPrepService } from './services/matchPrepService.js';
 import type {
   BridgeInstallPreview,
   EnvironmentSummary,
@@ -150,6 +152,14 @@ app.whenReady().then(async () => {
     checkpointDirectory: path.join(dataDirectory, 'checkpoints'),
     activeCareerPath: path.join(dataDirectory, 'career.db'),
   });
+  const resultService = new ResultService({
+    careerPath: path.join(dataDirectory, 'career.db'),
+    checkpointDirectory: path.join(dataDirectory, 'checkpoints'),
+  });
+  const matchPrepService = new MatchPrepService({
+    careerPath: path.join(dataDirectory, 'career.db'),
+    checkpointDirectory: path.join(dataDirectory, 'checkpoints'),
+  });
   registerIpc({
     sqliteAvailable: await sqliteAvailable(),
     syncStatus: () => syncStatusFor(detect()),
@@ -187,6 +197,12 @@ app.whenReady().then(async () => {
       pendingBridgePlan = null;
       return result;
     },
+    pendingFixtures: () => resultService.listPendingFixtures(),
+    fixturePlayers: (fixtureId) => resultService.listFixturePlayers(fixtureId),
+    commitManualResult: (draft) => resultService.commitManual(draft),
+    matchPrepState: (manualConfirmed) => matchPrepService.state(manualConfirmed),
+    createPreMatchCheckpoint: (manualConfirmed) =>
+      matchPrepService.createCheckpoint(manualConfirmed),
     listCheckpoints: () => checkpointService.list(),
     restoreCheckpoint: (checkpointId) => checkpointService.restore(checkpointId),
     exportDiagnostics: (outputPath) => {

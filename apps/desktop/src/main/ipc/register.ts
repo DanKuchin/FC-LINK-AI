@@ -6,6 +6,12 @@ import {
   type BridgeInstallSummary,
   type CheckpointSummary,
   type EnvironmentSummary,
+  type FixturePlayer,
+  type ManualResultCommit,
+  type ManualResultDraft,
+  type ManualResultPlayerLine,
+  type MatchPrepState,
+  type PendingFixture,
   type RestoreCheckpointResult,
   type SyncStatus,
   type VersionSurface,
@@ -19,9 +25,67 @@ export interface DesktopServices {
   readonly setManualLiveEditorPath: (selectedPath: string) => EnvironmentSummary;
   readonly previewBridgeInstall: () => BridgeInstallPreview;
   readonly applyBridgeInstall: (allowUserModified: boolean) => BridgeInstallSummary;
+  readonly pendingFixtures: () => readonly PendingFixture[];
+  readonly fixturePlayers: (fixtureId: number) => readonly FixturePlayer[];
+  readonly commitManualResult: (draft: ManualResultDraft) => ManualResultCommit;
+  readonly matchPrepState: (manualResultModeConfirmed: boolean) => MatchPrepState;
+  readonly createPreMatchCheckpoint: (manualResultModeConfirmed: boolean) => MatchPrepState;
   readonly listCheckpoints: () => readonly CheckpointSummary[];
   readonly restoreCheckpoint: (checkpointId: string) => RestoreCheckpointResult | Promise<RestoreCheckpointResult>;
   readonly exportDiagnostics: (outputPath: string) => void | Promise<void>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function numberField(record: Record<string, unknown>, name: string): number {
+  const value = record[name];
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`${name} must be a finite number.`);
+  }
+  return value;
+}
+
+function parsePlayerLine(value: unknown): ManualResultPlayerLine {
+  if (!isRecord(value)) throw new Error('Every player line must be an object.');
+  const rating = value.rating;
+  if (rating !== null && (typeof rating !== 'number' || !Number.isFinite(rating))) {
+    throw new Error('rating must be a finite number or null.');
+  }
+  return {
+    playerId: numberField(value, 'playerId'),
+    appearances: numberField(value, 'appearances') as 0 | 1,
+    goals: numberField(value, 'goals'),
+    assists: numberField(value, 'assists'),
+    yellow: numberField(value, 'yellow'),
+    red: numberField(value, 'red'),
+    cleanSheet: numberField(value, 'cleanSheet') as 0 | 1,
+    rating,
+  };
+}
+
+function parseManualResult(value: unknown): ManualResultDraft {
+  if (!isRecord(value)) throw new Error('Manual result must be an object.');
+  if (!Array.isArray(value.playerLines)) throw new Error('playerLines must be an array.');
+  const optionalScore = (name: 'homePens' | 'awayPens'): number | null | undefined => {
+    const score = value[name];
+    if (score === undefined || score === null) return score;
+    if (typeof score !== 'number' || !Number.isFinite(score)) {
+      throw new Error(`${name} must be a finite number or null.`);
+    }
+    return score;
+  };
+  const homePens = optionalScore('homePens');
+  const awayPens = optionalScore('awayPens');
+  return {
+    fixtureId: numberField(value, 'fixtureId'),
+    homeGoals: numberField(value, 'homeGoals'),
+    awayGoals: numberField(value, 'awayGoals'),
+    ...(homePens === undefined ? {} : { homePens }),
+    ...(awayPens === undefined ? {} : { awayPens }),
+    playerLines: value.playerLines.map(parsePlayerLine),
+  };
 }
 
 export function registerIpc(services: DesktopServices): void {
@@ -74,6 +138,23 @@ export function registerIpc(services: DesktopServices): void {
       return services.applyBridgeInstall(allowUserModified);
     },
   );
+  ipcMain.handle(IPC_CHANNELS.resultPendingFixtures, () => services.pendingFixtures());
+  ipcMain.handle(IPC_CHANNELS.resultFixturePlayers, (_event, fixtureId: unknown) => {
+    if (typeof fixtureId !== 'number' || !Number.isInteger(fixtureId) || fixtureId <= 0) {
+      throw new Error('Fixture ID is invalid.');
+    }
+    return services.fixturePlayers(fixtureId);
+  });
+  ipcMain.handle(IPC_CHANNELS.resultCommitManual, (_event, draft: unknown) =>
+    services.commitManualResult(parseManualResult(draft)));
+  ipcMain.handle(IPC_CHANNELS.matchPrepState, (_event, manualConfirmed: unknown) => {
+    if (typeof manualConfirmed !== 'boolean') throw new Error('Manual-mode choice is invalid.');
+    return services.matchPrepState(manualConfirmed);
+  });
+  ipcMain.handle(IPC_CHANNELS.matchPrepCheckpoint, (_event, manualConfirmed: unknown) => {
+    if (typeof manualConfirmed !== 'boolean') throw new Error('Manual-mode choice is invalid.');
+    return services.createPreMatchCheckpoint(manualConfirmed);
+  });
   ipcMain.handle(IPC_CHANNELS.checkpointList, () => services.listCheckpoints());
   ipcMain.handle(IPC_CHANNELS.checkpointRestore, async (_event, checkpointId: unknown) => {
     if (typeof checkpointId !== 'string' || checkpointId.length === 0 || checkpointId.length > 200) {
