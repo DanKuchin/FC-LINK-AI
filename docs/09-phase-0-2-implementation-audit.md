@@ -24,10 +24,10 @@ database.
 | Check | Result |
 |---|---|
 | `pnpm build` | pass; renderer, Electron main and CommonJS preload built |
-| `pnpm check` | pass; 26 files, 174 tests |
+| `pnpm check` | pass; 27 files, 177 tests |
 | Electron cold-boot smoke | pass; renderer + preload + typed IPC + Electron `node:sqlite` + live Doctor + Squad trust surface |
 | Process killed mid-day transaction | pass; prior day restored, SQLite integrity clean |
-| Migration corpus | pass; schema v1 opens at v3 with career row preserved |
+| Migration corpus | pass; desktop startup checkpoints and opens schema v1 at v4 with career row preserved |
 | Checkpoint integrity | pass; byte-identical database restore, bundled raw evidence, no partial failed checkpoint |
 | Manifest override | pass; validate-before-replace, downgrade refusal, damaged-override fallback |
 | Sync Doctor | pass; all 12 conditions in doc 08 A5 exercised |
@@ -75,14 +75,14 @@ machine. Never arm the write probe against a career that matters.
 |---|---|---|
 | Electron shell | implemented | production build and self-terminating cold-boot smoke pass |
 | Typed IPC boundary | implemented | sandbox + context isolation; renderer boundary test |
-| SQLite + migrations | implemented | Electron runtime check plus persistence suite |
+| SQLite + migrations | implemented | Electron runtime check; startup pre-migration checkpoint; packaged SQL assets; v1 → v4 desktop test |
 | Checkpoint/restore core | implemented | database + latest raw snapshot, checksums, integrity check, safety copy, retention tests |
 | FC + Live Editor detection | implemented locally | registry, known-path, manifest and manual-path fixture tests; live Windows validation pending |
 | Bridge installer | implemented locally | diff preview, SHA-256 verification, tamper conflict and explicit overwrite consent |
 | Personality generation | implemented | five independently seeded fact-driven traits, explanations and population-direction tests |
 | Pre-match launch gate | implemented | verified checkpoint mandatory; current snapshot or explicit manual-mode choice |
 | Squad + player profile | internal career adapter implemented | sortable, three densities, ranges, contract/condition/personality evidence; FC population waits for schema |
-| Result confirmation screen | manual path implemented | full score/player-line form, explicit confirmation, `user_entered` provenance and causal event |
+| Result confirmation screen | manual path implemented | full score/player-line form, explicit confirmation, `user_entered` provenance, causal event, durable checkpoint retry after restart |
 | Import pipeline | blocked correctly | requires recorded real schema |
 | Snapshot diffing | blocked correctly | requires recorded before/after fixtures |
 | Real-match cold-start exit twice | pending | requires Windows FC + completed import/diff |
@@ -95,7 +95,7 @@ does not present the shell as a working import.
 | Deliverable | Status | Evidence / blocker |
 |---|---|---|
 | Full club/player import | blocked correctly | requires real schema fixture |
-| Migration framework + old-save test | implemented | shipped v1 → v3 migration preserves the career |
+| Migration framework + old-save test | implemented | shipped v1 → v4 migration preserves the career after a verified automatic checkpoint |
 | Backup/restore | implemented | database + raw-evidence bundle, verified list, confirmation, atomic restore, safety copy and restore-history UI workflow |
 | Sync Doctor v1 | implemented locally | 12 live conditions derived from environment, Lua hello, career, snapshots and queue; recovery offers and deep links |
 | Idempotent write queue | implemented, not enabled | stable keys, max-10 batches, attempts, ack/read-back/durability states |
@@ -170,6 +170,16 @@ does not present the shell as a working import.
     selected JSON override, validates it before atomic replacement, rejects
     older/unsupported formats, falls back to the bundled baseline if a dropped
     file is damaged, and applies the result to compatibility checks immediately.
+20. A manual score committed before its post-match checkpoint was created. If
+    checkpoint creation failed, the IPC call threw and invited the user to submit
+    the already-durable score again. Schema v4 now records checkpoint state in the
+    result transaction, reports checkpoint-only failure honestly, discovers
+    pending/failed recovery after restart, and retries idempotently without
+    creating a checkpoint for the wrong in-game day.
+21. The migration framework passed source tests, but the Electron build omitted
+    its SQL files and startup never invoked it. Builds now copy the immutable
+    migration corpus, and the desktop creates a verified pre-migration checkpoint
+    before opening a v1 career at v4.
 
 ## Remaining critical path
 

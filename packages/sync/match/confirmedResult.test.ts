@@ -93,6 +93,13 @@ describe('confirmed match result', () => {
       .toBe('played');
     expect(db.get<{ kind: string }>('SELECT kind FROM sim_events')?.kind)
       .toBe('match_result_confirmed');
+    expect(db.get<{
+      in_game_date: number;
+      state: string;
+    }>('SELECT in_game_date, state FROM match_result_checkpoints')).toEqual({
+      in_game_date: 20000,
+      state: 'pending',
+    });
     db.close();
   });
 

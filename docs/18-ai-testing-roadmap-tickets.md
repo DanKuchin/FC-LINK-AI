@@ -115,7 +115,7 @@ Order is execution order. **Tickets 1–22 involve no model.** Difficulty: S < 2
 | 30 | Validator: permission + consistency | Authority, knowledge, voice | `ai/validate` | Out-of-authority statement → reject | fixtures per character type | 29 | M | Yes | none |
 | 31 | Response cache | One event, one wording, forever | `ai/cache` | Keyed by event+template+model+schema | hit/miss + reproducibility | 27 | M | Yes | none |
 | 32 | Cost controller + meter | Protect against bugs, not users | `ai/cost` | Per-call estimate; session + monthly caps; UI meter | cap enforcement | 27 | M | Yes | none |
-| 33 | `ai_calls` logging (migration 0004) | Replay + audit surface | `persistence`, `ai` | Full record incl. fact sheet and per-gate results | round-trip | 27 | M | Yes | save size |
+| 33 | `ai_calls` logging (migration 0007) | Replay + audit surface | `persistence`, `ai` | Full record incl. fact sheet and per-gate results | round-trip | 27 | M | Yes | save size |
 | 34 | Orchestrator + queue | Priority, cancellation, budget | `ai/orchestrator` | Interactive vs background; cancel is free | queue tests | 31,32 | L | Yes | none |
 | 35 | Streaming utterance UI | Make 2 s feel like 0.4 s | `renderer` | First token < 500 ms; template already on screen | manual + p95 | 34 | M | Yes | none |
 | 36 | Fault-injection fallback test | Prove the floor holds | `tests` | Kill the provider mid-call → template, no error surfaced | integration | 34 | M | Yes | none |

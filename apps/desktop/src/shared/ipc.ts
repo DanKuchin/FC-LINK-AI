@@ -9,6 +9,8 @@ export const IPC_CHANNELS = {
   resultPendingFixtures: 'result:pending-fixtures',
   resultFixturePlayers: 'result:fixture-players',
   resultCommitManual: 'result:commit-manual',
+  resultCheckpointIssues: 'result:checkpoint-issues',
+  resultRetryCheckpoint: 'result:retry-checkpoint',
   matchPrepState: 'match-prep:state',
   matchPrepCheckpoint: 'match-prep:checkpoint',
   checkpointList: 'checkpoint:list',
@@ -171,7 +173,21 @@ export interface ManualResultDraft {
 export interface ManualResultCommit {
   readonly matchResultId: number;
   readonly simEventId: number;
+  readonly checkpointId: string | null;
+  readonly checkpointState: 'created' | 'failed';
+  readonly warning: string | null;
+}
+
+export interface PostMatchCheckpointRetry {
+  readonly matchResultId: number;
   readonly checkpointId: string;
+}
+
+export interface PostMatchCheckpointIssue {
+  readonly matchResultId: number;
+  readonly fixtureId: number;
+  readonly state: 'pending' | 'failed';
+  readonly lastError: string | null;
 }
 
 export interface MatchPrepState {
@@ -220,6 +236,10 @@ export interface TenureDesktopApi {
   readonly pendingFixtures: () => Promise<readonly PendingFixture[]>;
   readonly fixturePlayers: (fixtureId: number) => Promise<readonly FixturePlayer[]>;
   readonly commitManualResult: (draft: ManualResultDraft) => Promise<ManualResultCommit>;
+  readonly postMatchCheckpointIssues: () => Promise<readonly PostMatchCheckpointIssue[]>;
+  readonly retryPostMatchCheckpoint: (
+    matchResultId: number,
+  ) => Promise<PostMatchCheckpointRetry>;
   readonly matchPrepState: (manualResultModeConfirmed: boolean) => Promise<MatchPrepState>;
   readonly createPreMatchCheckpoint: (
     manualResultModeConfirmed: boolean,

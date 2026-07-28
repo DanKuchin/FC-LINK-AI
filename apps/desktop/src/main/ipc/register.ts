@@ -15,6 +15,8 @@ import {
   type ManualResultPlayerLine,
   type MatchPrepState,
   type PendingFixture,
+  type PostMatchCheckpointIssue,
+  type PostMatchCheckpointRetry,
   type RestoreCheckpointResult,
   type SquadView,
   type SyncStatus,
@@ -39,6 +41,8 @@ export interface DesktopServices {
   readonly pendingFixtures: () => readonly PendingFixture[];
   readonly fixturePlayers: (fixtureId: number) => readonly FixturePlayer[];
   readonly commitManualResult: (draft: ManualResultDraft) => ManualResultCommit;
+  readonly postMatchCheckpointIssues: () => readonly PostMatchCheckpointIssue[];
+  readonly retryPostMatchCheckpoint: (matchResultId: number) => PostMatchCheckpointRetry;
   readonly matchPrepState: (manualResultModeConfirmed: boolean) => MatchPrepState;
   readonly createPreMatchCheckpoint: (manualResultModeConfirmed: boolean) => MatchPrepState;
   readonly listCheckpoints: () => readonly CheckpointSummary[];
@@ -102,7 +106,7 @@ function parseManualResult(value: unknown): ManualResultDraft {
 export function registerIpc(services: DesktopServices): void {
   ipcMain.handle(IPC_CHANNELS.versions, (): VersionSurface => ({
     app: app.getVersion(),
-    saveSchema: 3,
+    saveSchema: 4,
     bridgeProtocol: 1,
     compatibilityManifest: services.compatibilityManifestVersion(),
     sqliteAvailable: services.sqliteAvailable,
@@ -181,6 +185,20 @@ export function registerIpc(services: DesktopServices): void {
   });
   ipcMain.handle(IPC_CHANNELS.resultCommitManual, (_event, draft: unknown) =>
     services.commitManualResult(parseManualResult(draft)));
+  ipcMain.handle(
+    IPC_CHANNELS.resultCheckpointIssues,
+    () => services.postMatchCheckpointIssues(),
+  );
+  ipcMain.handle(IPC_CHANNELS.resultRetryCheckpoint, (_event, matchResultId: unknown) => {
+    if (
+      typeof matchResultId !== 'number' ||
+      !Number.isInteger(matchResultId) ||
+      matchResultId <= 0
+    ) {
+      throw new Error('Match result ID is invalid.');
+    }
+    return services.retryPostMatchCheckpoint(matchResultId);
+  });
   ipcMain.handle(IPC_CHANNELS.matchPrepState, (_event, manualConfirmed: unknown) => {
     if (typeof manualConfirmed !== 'boolean') throw new Error('Manual-mode choice is invalid.');
     return services.matchPrepState(manualConfirmed);

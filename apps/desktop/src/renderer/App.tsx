@@ -6,9 +6,11 @@ import type {
   DoctorConditionView,
   EnvironmentSummary,
   FixturePlayer,
+  ManualResultCommit,
   ManualResultPlayerLine,
   MatchPrepState,
   PendingFixture,
+  PostMatchCheckpointIssue,
   SquadPlayerView,
   SquadView,
   SyncStatus,
@@ -477,6 +479,9 @@ function Result({ onCommitted }: { readonly onCommitted: () => Promise<void> }) 
   const [lines, setLines] = useState<readonly EditablePlayerLine[]>([]);
   const [confirmed, setConfirmed] = useState(false);
   const [message, setMessage] = useState('');
+  const [checkpointIssues, setCheckpointIssues] = useState<
+    readonly PostMatchCheckpointIssue[]
+  >([]);
 
   const reloadFixtures = async () => {
     const pending = await window.tenure.pendingFixtures();
@@ -487,8 +492,12 @@ function Result({ onCommitted }: { readonly onCommitted: () => Promise<void> }) 
         : (pending[0]?.id ?? null));
   };
 
+  const reloadCheckpointIssues = async () => {
+    setCheckpointIssues(await window.tenure.postMatchCheckpointIssues());
+  };
+
   useEffect(() => {
-    void reloadFixtures();
+    void Promise.all([reloadFixtures(), reloadCheckpointIssues()]);
   }, []);
 
   useEffect(() => {
@@ -518,8 +527,9 @@ function Result({ onCommitted }: { readonly onCommitted: () => Promise<void> }) 
 
   const commit = async () => {
     if (fixtureId === null || !confirmed) return;
+    let result: ManualResultCommit;
     try {
-      const result = await window.tenure.commitManualResult({
+      result = await window.tenure.commitManualResult({
         fixtureId,
         homeGoals: Number(homeGoals),
         awayGoals: Number(awayGoals),
@@ -545,14 +555,43 @@ function Result({ onCommitted }: { readonly onCommitted: () => Promise<void> }) 
             rating: line.rating,
           })),
       });
-      setMessage(
-        `Result ${result.matchResultId} confirmed as user-entered. ` +
-        `Checkpoint ${result.checkpointId} protects the previous state.`,
-      );
-      setConfirmed(false);
-      await Promise.all([reloadFixtures(), onCommitted()]);
     } catch (error) {
       setMessage(`Result was not committed: ${(error as Error).message}`);
+      return;
+    }
+
+    const committedMessage = result.checkpointState === 'created'
+      ? `Result ${result.matchResultId} confirmed as user-entered. ` +
+        `Post-match checkpoint ${result.checkpointId} is verified.`
+      : result.warning ??
+        `Result ${result.matchResultId} was committed, but its checkpoint needs retrying. ` +
+        'Do not enter the score again.';
+    setMessage(committedMessage);
+    setConfirmed(false);
+    try {
+      await Promise.all([reloadFixtures(), reloadCheckpointIssues(), onCommitted()]);
+    } catch (error) {
+      setMessage(
+        `${committedMessage} The screen could not refresh: ${(error as Error).message}`,
+      );
+    }
+  };
+
+  const retryCheckpoint = async (matchResultId: number) => {
+    try {
+      const result = await window.tenure.retryPostMatchCheckpoint(matchResultId);
+      setCheckpointIssues((current) =>
+        current.filter((issue) => issue.matchResultId !== matchResultId));
+      setMessage(
+        `Post-match checkpoint ${result.checkpointId} is now verified for ` +
+        `result ${result.matchResultId}.`,
+      );
+      await Promise.all([reloadCheckpointIssues(), onCommitted()]);
+    } catch (error) {
+      setMessage(
+        `Result ${matchResultId} remains committed, but checkpoint retry failed: ` +
+        `${(error as Error).message}`,
+      );
     }
   };
 
@@ -619,6 +658,18 @@ function Result({ onCommitted }: { readonly onCommitted: () => Promise<void> }) 
           <div className="actions"><button disabled={!confirmed} onClick={() => void commit()}>Confirm manual result</button></div>
         </>
       )}
+      {checkpointIssues.map((issue) => (
+        <div className="notice" key={issue.matchResultId}>
+          Result {issue.matchResultId} for fixture {issue.fixtureId} is committed,
+          but its post-match checkpoint is {issue.state}.
+          {issue.lastError === null ? null : <> Last error: {issue.lastError}</>}
+          <div className="actions">
+            <button onClick={() => void retryCheckpoint(issue.matchResultId)}>
+              Retry post-match checkpoint
+            </button>
+          </div>
+        </div>
+      ))}
       <p className="recovery-message" aria-live="polite">{message}</p>
     </section>
   );

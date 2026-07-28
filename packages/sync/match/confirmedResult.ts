@@ -186,6 +186,14 @@ export function commitConfirmedResult(db: Db, input: ConfirmedResultInput): Comm
       input.createdAt,
     );
     const matchResultId = Number(result.lastInsertRowid);
+    db.run(
+      `INSERT INTO match_result_checkpoints (
+        match_result_id, in_game_date, state, checkpoint_id, last_error, updated_at
+      ) VALUES (?, ?, 'pending', NULL, NULL, ?)`,
+      matchResultId,
+      fixture.current_date,
+      input.createdAt,
+    );
     for (const line of lines) {
       db.run(
         `INSERT INTO player_match_stats (

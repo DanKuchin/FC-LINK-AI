@@ -24,6 +24,7 @@ import { MatchPrepService } from './services/matchPrepService.js';
 import { BridgeRuntime } from './services/bridgeRuntime.js';
 import { SquadService } from './services/squadService.js';
 import { CompatibilityManifestService } from './services/compatibilityManifestService.js';
+import { migrateActiveCareer } from './services/migrationService.js';
 import type {
   BridgeInstallPreview,
   EnvironmentSummary,
@@ -143,6 +144,11 @@ async function createWindow(): Promise<BrowserWindow> {
 
 app.whenReady().then(async () => {
   const dataDirectory = app.getPath('userData');
+  migrateActiveCareer({
+    careerPath: path.join(dataDirectory, 'career.db'),
+    checkpointDirectory: path.join(dataDirectory, 'checkpoints'),
+    migrationDirectory: path.join(directory, 'migrations'),
+  });
   const bridgeSourceDirectory = app.isPackaged
     ? path.join(process.resourcesPath, 'bridge')
     : path.resolve(directory, '../../../../bridge');
@@ -230,6 +236,9 @@ app.whenReady().then(async () => {
     pendingFixtures: () => resultService.listPendingFixtures(),
     fixturePlayers: (fixtureId) => resultService.listFixturePlayers(fixtureId),
     commitManualResult: (draft) => resultService.commitManual(draft),
+    postMatchCheckpointIssues: () => resultService.listPostMatchCheckpointIssues(),
+    retryPostMatchCheckpoint: (matchResultId) =>
+      resultService.retryPostMatchCheckpoint(matchResultId),
     matchPrepState: (manualConfirmed) => matchPrepService.state(manualConfirmed),
     createPreMatchCheckpoint: (manualConfirmed) =>
       matchPrepService.createCheckpoint(manualConfirmed),
@@ -243,7 +252,7 @@ app.whenReady().then(async () => {
         createdAt,
         versions: {
           app: app.getVersion(),
-          saveSchema: 3,
+          saveSchema: 4,
           bridgeProtocol: 1,
           compatibilityManifest:
             compatibilityManifestService.manifest().manifest_version,

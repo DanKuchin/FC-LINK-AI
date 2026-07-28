@@ -156,10 +156,10 @@ sequenceDiagram
 
 ## 3. Database additions
 
-Three migrations on top of `0001_init.sql`.
+Three future migrations on top of the current Phase 2 schema (`0004`).
 
 ```sql
--- 0002_characters_memory_emotion.sql
+-- 0005_characters_memory_emotion.sql
 --   character_memories        (doc 12 §2.3)
 --   memory_summaries          (doc 12 §2.3)
 --   character_emotions        (doc 12 §3.1)
@@ -173,7 +173,7 @@ CREATE TABLE character_voices (
   PRIMARY KEY (career_id, character_type, character_id)
 );
 
--- 0003_narrative_arcs.sql
+-- 0006_narrative_arcs.sql
 --   narrative_arcs            (doc 14 §1.2)
 CREATE TABLE reaction_cooldowns (
   career_id      INTEGER NOT NULL REFERENCES careers(id),
@@ -193,7 +193,7 @@ CREATE TABLE drama_budget (
   PRIMARY KEY (career_id, season_id)
 );
 
--- 0004_ai_observability.sql   APPEND ONLY. This is the replay + audit surface.
+-- 0007_ai_observability.sql   APPEND ONLY. This is the replay + audit surface.
 CREATE TABLE ai_calls (
   id                INTEGER PRIMARY KEY,
   career_id         INTEGER NOT NULL REFERENCES careers(id),
@@ -228,7 +228,7 @@ CREATE TABLE ai_response_cache (
   hits         INTEGER NOT NULL DEFAULT 0
 );
 
--- narrative_events gains a provenance column (0004)
+-- narrative_events gains a provenance column (0007)
 ALTER TABLE narrative_events ADD COLUMN ai_call_id INTEGER REFERENCES ai_calls(id);
 ```
 

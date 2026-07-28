@@ -98,10 +98,82 @@ describe('desktop result service', () => {
       }],
     });
     expect(result.checkpointId).toContain('post_match');
+    expect(result.checkpointState).toBe('created');
+    expect(result.warning).toBeNull();
     expect(listCheckpoints(checkpointDirectory)).toHaveLength(2);
     db = openDatabase(careerPath);
     expect(db.get<{ provenance: string }>('SELECT provenance FROM match_results')?.provenance)
       .toBe('user_entered');
+    expect(db.get<{ state: string; checkpoint_id: string }>(
+      'SELECT state, checkpoint_id FROM match_result_checkpoints',
+    )).toEqual({ state: 'created', checkpoint_id: result.checkpointId });
+    db.close();
+  });
+
+  it('keeps a committed result distinct from a failed checkpoint and retries safely', () => {
+    let db = openDatabase(careerPath);
+    createCheckpoint(db, {
+      dir: checkpointDirectory,
+      reason: 'pre_match',
+      careerId: 1,
+      inGameDate: 20000,
+      now: 40,
+    });
+    db.close();
+    const failing = new ResultService({
+      careerPath,
+      checkpointDirectory,
+      now: () => 50,
+      createCheckpoint: () => {
+        throw new Error('disk full');
+      },
+    });
+    const committed = failing.commitManual({
+      fixtureId: 1,
+      homeGoals: 1,
+      awayGoals: 0,
+      playerLines: [],
+    });
+    expect(committed).toMatchObject({
+      matchResultId: 1,
+      checkpointId: null,
+      checkpointState: 'failed',
+    });
+    expect(committed.warning).toMatch(/was committed.*disk full/);
+    expect(new ResultService({ careerPath, checkpointDirectory })
+      .listPostMatchCheckpointIssues()).toEqual([{
+      matchResultId: 1,
+      fixtureId: 1,
+      state: 'failed',
+      lastError: 'disk full',
+    }]);
+
+    db = openDatabase(careerPath);
+    expect(db.all('SELECT * FROM match_results')).toHaveLength(1);
+    expect(db.get<{ state: string; last_error: string }>(
+      'SELECT state, last_error FROM match_result_checkpoints',
+    )).toEqual({ state: 'failed', last_error: 'disk full' });
+    db.close();
+
+    const recovered = new ResultService({
+      careerPath,
+      checkpointDirectory,
+      now: () => 60,
+    }).retryPostMatchCheckpoint(committed.matchResultId);
+    expect(recovered.matchResultId).toBe(committed.matchResultId);
+    expect(recovered.checkpointId).toContain('post_match');
+    expect(listCheckpoints(checkpointDirectory)).toHaveLength(2);
+    expect(new ResultService({ careerPath, checkpointDirectory })
+      .listPostMatchCheckpointIssues()).toEqual([]);
+
+    db = openDatabase(careerPath);
+    expect(db.get<{ state: string; checkpoint_id: string; last_error: null }>(
+      'SELECT state, checkpoint_id, last_error FROM match_result_checkpoints',
+    )).toEqual({
+      state: 'created',
+      checkpoint_id: recovered.checkpointId,
+      last_error: null,
+    });
     db.close();
   });
 

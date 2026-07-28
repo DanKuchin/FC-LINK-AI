@@ -12,6 +12,8 @@ import type {
   ManualResultDraft,
   MatchPrepState,
   PendingFixture,
+  PostMatchCheckpointIssue,
+  PostMatchCheckpointRetry,
   RestoreCheckpointResult,
   SquadView,
   SyncStatus,
@@ -31,6 +33,8 @@ const IPC_CHANNELS: IpcChannels = {
   resultPendingFixtures: 'result:pending-fixtures',
   resultFixturePlayers: 'result:fixture-players',
   resultCommitManual: 'result:commit-manual',
+  resultCheckpointIssues: 'result:checkpoint-issues',
+  resultRetryCheckpoint: 'result:retry-checkpoint',
   matchPrepState: 'match-prep:state',
   matchPrepCheckpoint: 'match-prep:checkpoint',
   checkpointList: 'checkpoint:list',
@@ -78,6 +82,15 @@ const api: TenureDesktopApi = Object.freeze({
     ) as Promise<readonly FixturePlayer[]>,
   commitManualResult: (draft: ManualResultDraft) =>
     ipcRenderer.invoke(IPC_CHANNELS.resultCommitManual, draft) as Promise<ManualResultCommit>,
+  postMatchCheckpointIssues: () =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.resultCheckpointIssues,
+    ) as Promise<readonly PostMatchCheckpointIssue[]>,
+  retryPostMatchCheckpoint: (matchResultId: number) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.resultRetryCheckpoint,
+      matchResultId,
+    ) as Promise<PostMatchCheckpointRetry>,
   matchPrepState: (manualResultModeConfirmed: boolean) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.matchPrepState,

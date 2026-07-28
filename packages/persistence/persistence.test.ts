@@ -125,6 +125,7 @@ describe('migrations — the real schema', () => {
       'financial_transactions', 'sim_events', 'historical_records', 'scheduled_events',
       'sync_snapshots', 'sync_operations', 'external_id_mappings', 'sync_divergences',
       'sync_operation_attempts', 'diagnostic_runs', 'restore_history', 'save_migrations',
+      'match_result_checkpoints',
     ]) {
       expect(names, `missing table: ${expected}`).toContain(expected);
     }
@@ -140,7 +141,7 @@ describe('migrations — the real schema', () => {
     db.close();
   });
 
-  it('opens a schema-v1 save after the next two shipped migrations', () => {
+  it('opens a schema-v1 save after the next three shipped migrations', () => {
     const db = openMemoryDatabase();
     const first = migrate(db, { now: 1, targetVersion: 1 });
     expect(first.to).toBe(1);
@@ -152,10 +153,54 @@ describe('migrations — the real schema', () => {
     );
 
     const upgraded = migrate(db, { now: 2 });
-    expect(upgraded).toMatchObject({ from: 1, to: 3, applied: [2, 3] });
+    expect(upgraded).toMatchObject({ from: 1, to: 4, applied: [2, 3, 4] });
     expect(db.get<{ name: string }>('SELECT name FROM careers WHERE id = 1')?.name)
       .toBe('Old save');
     expect(isUpToDate(db)).toBe(true);
+    db.close();
+  });
+
+  it('backfills durable checkpoint recovery state for an existing result', () => {
+    const db = openMemoryDatabase();
+    migrate(db, { now: 1, targetVersion: 3 });
+    db.run(
+      `INSERT INTO careers (
+        id, name, save_uid, master_seed, current_date, schema_version, created_at, updated_at
+      ) VALUES (1, 'Old result', 'old-result', 'seed', 20000, 3, 1, 1)`,
+    );
+    db.run("INSERT INTO seasons VALUES (1, 1, 2026, 2027, 'active')");
+    db.run(
+      "INSERT INTO competitions (id, career_id, name, kind) VALUES (1, 1, 'League', 'league')",
+    );
+    db.run(
+      `INSERT INTO clubs (id, career_id, name, created_at, updated_at)
+       VALUES (1, 1, 'Home', 1, 1), (2, 1, 'Away', 1, 1)`,
+    );
+    db.run(
+      `INSERT INTO fixtures (
+        id, career_id, season_id, competition_id, home_club_id, away_club_id,
+        scheduled_date, status
+      ) VALUES (1, 1, 1, 1, 1, 2, 20000, 'played')`,
+    );
+    db.run(
+      `INSERT INTO match_results (
+        id, fixture_id, home_goals, away_goals, provenance, confirmed_by_user, created_at
+      ) VALUES (1, 1, 2, 1, 'user_entered', 1, 50)`,
+    );
+
+    expect(migrate(db, { now: 2 })).toMatchObject({ from: 3, to: 4, applied: [4] });
+    expect(db.get(
+      `SELECT match_result_id, in_game_date, state, checkpoint_id, last_error, updated_at
+       FROM match_result_checkpoints`,
+    )).toEqual({
+      match_result_id: 1,
+      in_game_date: 20000,
+      state: 'legacy',
+      checkpoint_id: null,
+      last_error:
+        'Result predates the checkpoint ledger; no historical checkpoint can be reconstructed.',
+      updated_at: 50,
+    });
     db.close();
   });
 
