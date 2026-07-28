@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "name": "minimal bridge replay",
+  "steps": [
+    {
+      "kind": "hello",
+      "body": {
+        "save_uid": "mock-career",
+        "game_build": "mock-build",
+        "le_version": "mock-le",
+        "in_career": true,
+        "in_game_date": "2026-07-28"
+      }
+    },
+    {
+      "kind": "snapshot",
+      "name": "career-load",
+      "file": "snapshot.json",
+      "chunk_bytes": 64
+    },
+    {
+      "kind": "event",
+      "body": {
+        "event_name": "DAY_PASSED",
+        "event_id": 2
+      }
+    }
+  ]
+}

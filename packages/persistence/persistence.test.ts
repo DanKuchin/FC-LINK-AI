@@ -122,7 +122,7 @@ describe('migrations — the real schema', () => {
       'scouting_reports', 'relationships', 'narrative_events', 'messages',
       'financial_transactions', 'sim_events', 'historical_records', 'scheduled_events',
       'sync_snapshots', 'sync_operations', 'external_id_mappings', 'sync_divergences',
-      'save_migrations',
+      'sync_operation_attempts', 'diagnostic_runs', 'restore_history', 'save_migrations',
     ]) {
       expect(names, `missing table: ${expected}`).toContain(expected);
     }
@@ -135,6 +135,25 @@ describe('migrations — the real schema', () => {
     const second = migrate(db, { now: 2 });
     expect(second.applied).toEqual([]);
     expect(appliedMigrations(db)).toHaveLength(loadMigrations().length);
+    db.close();
+  });
+
+  it('opens a schema-v1 save after the next two shipped migrations', () => {
+    const db = openMemoryDatabase();
+    const first = migrate(db, { now: 1, targetVersion: 1 });
+    expect(first.to).toBe(1);
+    db.run(
+      `INSERT INTO careers (
+        id, name, save_uid, master_seed, current_date, schema_version,
+        created_at, updated_at
+      ) VALUES (1, 'Old save', 'old-save', 'seed', 20000, 1, 1, 1)`,
+    );
+
+    const upgraded = migrate(db, { now: 2 });
+    expect(upgraded).toMatchObject({ from: 1, to: 3, applied: [2, 3] });
+    expect(db.get<{ name: string }>('SELECT name FROM careers WHERE id = 1')?.name)
+      .toBe('Old save');
+    expect(isUpToDate(db)).toBe(true);
     db.close();
   });
 

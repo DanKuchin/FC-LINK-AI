@@ -12,6 +12,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
+$bridgeRoot = Join-Path $repo "bridge"
 $source = Join-Path $repo "bridge\spike"
 
 if (-not (Test-Path $source)) { throw "Cannot find $source" }
@@ -46,6 +47,15 @@ Get-ChildItem $source -Filter *.lua | ForEach-Object {
     Write-Host ("  copied  " + $_.Name)
     $copied++
 }
+
+# Preserve shared bridge directories so the spike and production entry point
+# resolve the same transport and the same guarded offset reader.
+Copy-Item (Join-Path $bridgeRoot "lib") -Destination $target -Recurse -Force
+Copy-Item (Join-Path $bridgeRoot "readers") -Destination $target -Recurse -Force
+Copy-Item (Join-Path $bridgeRoot "tenure_bridge.lua") -Destination (Join-Path $target "tenure_bridge.lua") -Force
+Write-Host "  copied  lib\"
+Write-Host "  copied  readers\"
+Write-Host "  copied  tenure_bridge.lua"
 
 Write-Host ""
 Write-Host "  $copied script(s) installed to:"

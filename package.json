@@ -8,10 +8,12 @@
     "node": ">=22"
   },
   "scripts": {
+    "build": "pnpm typecheck && pnpm --filter @tenure/desktop build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && pnpm --filter @tenure/desktop typecheck",
     "check": "pnpm typecheck && pnpm test",
+    "mock-fc": "node tools/mock-fc/cli.ts",
     "spike:server": "node spike/server.mjs",
     "spike:install": "powershell -ExecutionPolicy Bypass -File spike/install-scripts.ps1",
     "spike:detect": "node spike/detect.mjs",
