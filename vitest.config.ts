@@ -15,7 +15,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['packages/**/*.test.ts', 'tests/**/*.test.ts'],
+    include: ['apps/**/*.test.ts', 'packages/**/*.test.ts', 'tests/**/*.test.ts'],
     environment: 'node',
     // The simulation must never see wall-clock time or ambient randomness.
     // Anything that needs "now" takes it as an argument.

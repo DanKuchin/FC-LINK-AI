@@ -1,8 +1,8 @@
 # Phase 0 — the spike
 
-The point of this folder is to answer seven questions before a single line of the
-real application gets written. Nothing here is production code and none of it will
-survive into Phase 1 unchanged. That is deliberate.
+The point of this folder is to answer the seven technical questions in doc 00
+and the additional measurable Phase 0 exit safeguards in doc 06. Nothing here
+is production code. Missing, partial, or concerning evidence remains blocking.
 
 **Total time: about 3 hours, most of it waiting for a football game to load.**
 
@@ -64,14 +64,29 @@ Scripts 02 and 03 take a few minutes each. Watch the Live Editor console output.
 Between 05 and 06 you must: **save in-game → quit FC completely → relaunch →
 load the same career.** Skipping the full quit invalidates the whole test.
 
+For the corruption exit gate, repeat the complete 05 → save → quit → relaunch →
+06 → save-restored-career sequence **8 times**. Step 06 appends one
+machine-readable record to `persist_history.ndjson`; the report requires 8
+unique, same-career cycles with every original restored. A failed restoration is
+retained as a failure rather than disappearing from the report.
+
 ### 4. Report
 
 ```bash
 node spike/report.mjs
 ```
 
-Writes `docs/spike-report.md` grading all seven checks. `UNKNOWN` is a real result
-and is never reported as a pass.
+Writes `docs/spike-report.md` grading all technical questions and roadmap
+safeguards. The report says “Proceed” only when every row is `PASS`.
+`CONCERN`, `FAIL`, and `UNKNOWN` are all blocking.
+
+Two rows deliberately remain `UNKNOWN` until their supervised work exists:
+
+- `match_diff.json` is produced from real before/after exports when the one-match
+  Phase 0 diff prototype is reviewed.
+- `transfer_write_result.json` records the explicitly supervised
+  `TransferPlayer` proof only after a backup/restore path has been proven. There
+  is no auto-armed transfer script.
 
 ---
 
@@ -97,7 +112,8 @@ spike/
 ├─ detect.mjs           environment + compatibility check (no game needed)
 ├─ server.mjs           loopback HTTP server + handshake  (Tickets 3, 4)
 ├─ install-scripts.ps1  copies the Lua into Live Editor
-├─ report.mjs           grades the seven checks
+├─ report.mjs           gathers evidence and renders the strict gate report
+├─ report-core.mjs      tested, all-PASS-only gate evaluator
 └─ out/                 what the server received (git-ignored)
 
 bridge/spike/

@@ -30,13 +30,19 @@ for (const d of [DATA_DIR, BRIDGE_DIR, SPIKE_DIR, OUT_DIR, path.join(OUT_DIR, 's
 }
 
 const TOKEN = crypto.randomBytes(32).toString('hex');
+const SERVER_RUN_ID = crypto.randomUUID();
 
 // ── logging ──────────────────────────────────────────────────────────────────
 const started = Date.now();
 const stamp = () => new Date().toISOString().slice(11, 23);
 const log = (...a) => console.log(`${stamp()} ·`, ...a);
 const logLine = fs.createWriteStream(path.join(OUT_DIR, 'server.ndjson'), { flags: 'a' });
-const record = (obj) => logLine.write(JSON.stringify({ at: Date.now(), ...obj }) + '\n');
+const record = (obj) => logLine.write(JSON.stringify({
+  at: Date.now(),
+  recorder_version: 2,
+  server_run_id: SERVER_RUN_ID,
+  ...obj,
+}) + '\n');
 
 // ── state ────────────────────────────────────────────────────────────────────
 /** @type {{save_uid?:string, le_version?:string, game_build?:string, seen_at?:number}} */
@@ -203,6 +209,8 @@ server.listen(0, '127.0.0.1', () => {
   const { port } = server.address();
   const handshake = {
     protocol: PROTOCOL,
+    recorder_version: 2,
+    server_run_id: SERVER_RUN_ID,
     port,
     token: TOKEN,
     base_url: `http://127.0.0.1:${port}`,

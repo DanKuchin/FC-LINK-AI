@@ -150,6 +150,72 @@ Covered in doc 14. Detects arcs from the event log; never creates events; can on
 **The rule:** the game master may change **what you are shown**, never **what is true**. Everything it adjusts must be visible and resettable in Settings, and its state must be inspectable.
 **MVP:** no. **Later:** low priority, high risk of feeling manipulative. Ship the presets (doc 16 §5) and see whether anyone wants more.
 
+## Q. Club constitution, authority and delegation
+
+**Experience:** the job at one club gives you transfer control; another makes you
+win the sporting director's approval, and both arrangements can change during a
+crisis.
+**Why AI helps:** it does not help decide authority. It can make a formal dispute
+read like politics rather than a permissions error.
+**Simulation:** versioned authority grants define who may recommend, approve,
+veto, execute and be informed for every decision family. Delegation trades user
+attention for another character's deterministic policy.
+**Forbidden:** an AI-written line creating, bypassing or implying authority that
+the constitution does not grant.
+**MVP:** authority scope already exists on the three board actors. **Later:** high
+value after Board & Mandate; this is a core expansion in doc 20.
+
+## R. Evidence-backed manager identity
+
+**Experience:** clubs approach you because of how you actually operated, while an
+agent distrusts you because your promise record contradicts your public image.
+**Why AI helps:** interviews and retrospectives can synthesize a long record.
+**Simulation:** reputation facets are derived separately for each constituency
+from observed event ids. A declared philosophy creates a commitment, not a bonus.
+**Forbidden:** an AI-assigned personality, reputation delta or career label.
+**MVP:** promise and mandate record. **Later:** very high—the mechanical completion
+of “the job, not the club.”
+
+## S. Belief, provenance and leaks
+
+**Experience:** the captain knows the manager promised a start because the player
+told him; the journalist has only a source-backed rumour; the board knows neither.
+**Why AI helps:** phrasing uncertainty and conflicting interpretations.
+**Simulation:** every belief records holder, proposition, source event, source
+actor, grade and confidence; deterministic access and propagation rules decide
+who learns what.
+**Forbidden:** the model deciding diffusion, truth, confidence or who leaked.
+**MVP:** no. **Later:** high, but only after `canHold()` has proved the simpler
+memory boundary.
+
+## T. Decision lens and causal affordance
+
+**Experience:** before acting, the user understands why this decision exists,
+who knows, which commitments are implicated and which categories of state each
+choice can change—without seeing a strategy-guide prediction.
+**Why AI helps:** optional concise explanation over an already assembled causal
+graph. The template implementation is sufficient.
+**Simulation:** every offered option must lead to a meaningfully different state
+or follow-up eligibility; otherwise it is the same option and must be merged.
+**Forbidden:** recommending the “best” option, revealing hidden values or claiming
+a guaranteed reaction.
+**MVP:** the Board “why” panel. **Later:** essential across every consequential
+screen.
+
+## U. Career chapters and scenario capsules
+
+**Experience:** the game can accurately say “this was the window that changed
+your tenure,” show the sourced turning points, and later let the user share a
+privacy-safe account of it.
+**Why AI helps:** compression and long-form prose over a deterministic selection
+of events.
+**Simulation:** a chapter compiler selects boundaries, evidence, commitments,
+turning points, echoes and unresolved threads. The model does not decide which
+events count.
+**Forbidden:** unsupported retrospective claims or raw save data in an export.
+**MVP:** no. **Later:** highest emotional value; scenario capsules are post-alpha
+research. See [doc 20](20-living-football-director.md).
+
 ---
 
 ## 2. Ranked feature matrix
@@ -182,11 +248,18 @@ Scored 1–10. **Difficulty**, **Cost** and **Hallucination** are *risk* scores 
 ### Grouping
 
 - **Essential foundation (build with no LLM):** 1, 2, 3, 6 — plus the template renderer.
+- **Broader institutional foundation (also no LLM):** Q, R and T; add S only
+  after the memory visibility boundary is proven.
 - **Best MVP AI feature:** 4 + 5, applied to feature 2. See §3.
 - **Public-alpha:** 7, 8.
-- **Later differentiators:** 9, 10, 11, 12, 13, 14.
+- **Later differentiators:** 9, 10, 11, 12, 13, 14 and U.
 - **Experimental:** 15, 16, 18.
 - **Reject:** 17 as commonly imagined (see doc 19 §2 — a *modest, honestly-labelled* version survives), 19, 20.
+
+The numerical matrix predates the broader institutional design. Q–U are kept
+outside its 1–20 ranking because most are simulation systems rather than AI
+features; [doc 20](20-living-football-director.md) gives their adoption and
+sequencing decisions.
 
 ---
 

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -20,6 +21,7 @@ import {
   restoreCheckpoint,
   verifyCheckpoint,
 } from './checkpoints.js';
+import { archiveSnapshot } from './snapshots.js';
 
 let tmp: string;
 beforeEach(() => {
@@ -122,7 +124,8 @@ describe('migrations — the real schema', () => {
       'scouting_reports', 'relationships', 'narrative_events', 'messages',
       'financial_transactions', 'sim_events', 'historical_records', 'scheduled_events',
       'sync_snapshots', 'sync_operations', 'external_id_mappings', 'sync_divergences',
-      'save_migrations',
+      'sync_operation_attempts', 'diagnostic_runs', 'restore_history', 'save_migrations',
+      'match_result_checkpoints',
     ]) {
       expect(names, `missing table: ${expected}`).toContain(expected);
     }
@@ -135,6 +138,69 @@ describe('migrations — the real schema', () => {
     const second = migrate(db, { now: 2 });
     expect(second.applied).toEqual([]);
     expect(appliedMigrations(db)).toHaveLength(loadMigrations().length);
+    db.close();
+  });
+
+  it('opens a schema-v1 save after the next three shipped migrations', () => {
+    const db = openMemoryDatabase();
+    const first = migrate(db, { now: 1, targetVersion: 1 });
+    expect(first.to).toBe(1);
+    db.run(
+      `INSERT INTO careers (
+        id, name, save_uid, master_seed, current_date, schema_version,
+        created_at, updated_at
+      ) VALUES (1, 'Old save', 'old-save', 'seed', 20000, 1, 1, 1)`,
+    );
+
+    const upgraded = migrate(db, { now: 2 });
+    expect(upgraded).toMatchObject({ from: 1, to: 4, applied: [2, 3, 4] });
+    expect(db.get<{ name: string }>('SELECT name FROM careers WHERE id = 1')?.name)
+      .toBe('Old save');
+    expect(isUpToDate(db)).toBe(true);
+    db.close();
+  });
+
+  it('backfills durable checkpoint recovery state for an existing result', () => {
+    const db = openMemoryDatabase();
+    migrate(db, { now: 1, targetVersion: 3 });
+    db.run(
+      `INSERT INTO careers (
+        id, name, save_uid, master_seed, current_date, schema_version, created_at, updated_at
+      ) VALUES (1, 'Old result', 'old-result', 'seed', 20000, 3, 1, 1)`,
+    );
+    db.run("INSERT INTO seasons VALUES (1, 1, 2026, 2027, 'active')");
+    db.run(
+      "INSERT INTO competitions (id, career_id, name, kind) VALUES (1, 1, 'League', 'league')",
+    );
+    db.run(
+      `INSERT INTO clubs (id, career_id, name, created_at, updated_at)
+       VALUES (1, 1, 'Home', 1, 1), (2, 1, 'Away', 1, 1)`,
+    );
+    db.run(
+      `INSERT INTO fixtures (
+        id, career_id, season_id, competition_id, home_club_id, away_club_id,
+        scheduled_date, status
+      ) VALUES (1, 1, 1, 1, 1, 2, 20000, 'played')`,
+    );
+    db.run(
+      `INSERT INTO match_results (
+        id, fixture_id, home_goals, away_goals, provenance, confirmed_by_user, created_at
+      ) VALUES (1, 1, 2, 1, 'user_entered', 1, 50)`,
+    );
+
+    expect(migrate(db, { now: 2 })).toMatchObject({ from: 3, to: 4, applied: [4] });
+    expect(db.get(
+      `SELECT match_result_id, in_game_date, state, checkpoint_id, last_error, updated_at
+       FROM match_result_checkpoints`,
+    )).toEqual({
+      match_result_id: 1,
+      in_game_date: 20000,
+      state: 'legacy',
+      checkpoint_id: null,
+      last_error:
+        'Result predates the checkpoint ledger; no historical checkpoint can be reconstructed.',
+      updated_at: 50,
+    });
     db.close();
   });
 
@@ -388,6 +454,108 @@ describe('checkpoints', () => {
 
     db = openDatabase(file);
     expect(db.get<{ name: string }>('SELECT name FROM careers')?.name).toBe('Test');
+    expect(db.integrityProblem()).toBeNull();
+    db.close();
+  });
+
+  it('bundles, verifies, and restores the latest raw snapshot with the database', () => {
+    const file = path.join(tmp, 'career.db');
+    const dir = path.join(tmp, 'checkpoints');
+    const rawDirectory = path.join(tmp, 'raw');
+    let db = careerAt(file);
+    const archived = archiveSnapshot(db, {
+      careerId: 1,
+      directory: rawDirectory,
+      reason: 'pre_match',
+      payload: '{"opaque":"evidence"}',
+      takenAt: 900,
+      protocol: 1,
+      inGameDate: 20000,
+    });
+    const info = createCheckpoint(db, {
+      dir,
+      reason: 'pre_match',
+      careerId: 1,
+      inGameDate: 20000,
+      now: 1000,
+    });
+    db.close();
+
+    expect(info.snapshot).toMatchObject({
+      id: archived.record.id,
+      sourcePath: archived.record.raw_path,
+      checksum: archived.record.checksum,
+    });
+    expect(fs.readFileSync(info.snapshot?.path ?? '', 'utf8')).toBe('{"opaque":"evidence"}');
+    fs.rmSync(archived.record.raw_path);
+    expect(verifyCheckpoint(info)).toEqual({ ok: true });
+
+    const restored = restoreCheckpoint(info, file, { now: 2000 });
+    expect(restored.restoredSnapshot).toBe(archived.record.raw_path);
+    const restoredDigest = crypto
+      .createHash('sha256')
+      .update(fs.readFileSync(file))
+      .digest('hex');
+    expect(restoredDigest).toBe(info.checksum);
+    expect(fs.readFileSync(restored.restoredSnapshot ?? '', 'utf8'))
+      .toBe('{"opaque":"evidence"}');
+    db = openDatabase(file);
+    expect(db.get<{ raw_path: string }>(
+      'SELECT raw_path FROM sync_snapshots WHERE id = ?',
+      archived.record.id,
+    )?.raw_path).toBe(archived.record.raw_path);
+    db.close();
+    const digestBeforeUnsafeRestore = crypto
+      .createHash('sha256')
+      .update(fs.readFileSync(file))
+      .digest('hex');
+
+    const outside = path.resolve(tmp, '..', 'escaped.snapshot');
+    expect(() => restoreCheckpoint({
+      ...info,
+      snapshot: info.snapshot === null || info.snapshot === undefined
+        ? null
+        : { ...info.snapshot, sourcePath: outside },
+    }, file, { now: 3000 })).toThrow(/outside the career data directory/);
+    expect(fs.existsSync(outside)).toBe(false);
+    expect(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'))
+      .toBe(digestBeforeUnsafeRestore);
+
+    const restoredOverExistingSnapshot = restoreCheckpoint(info, file, { now: 4000 });
+    expect(restoredOverExistingSnapshot.snapshotSafetyCopy).not.toBeNull();
+    expect(fs.readFileSync(
+      restoredOverExistingSnapshot.snapshotSafetyCopy ?? '',
+      'utf8',
+    )).toBe('{\"opaque\":\"evidence\"}');
+
+    fs.appendFileSync(info.snapshot?.path ?? '', 'tamper');
+    expect(verifyCheckpoint(info)).toEqual({
+      ok: false,
+      problem: 'checkpoint raw snapshot has been modified since it was written',
+    });
+  });
+
+  it('leaves no partial checkpoint when raw evidence fails verification', () => {
+    const file = path.join(tmp, 'career.db');
+    const dir = path.join(tmp, 'checkpoints');
+    const db = careerAt(file);
+    const archived = archiveSnapshot(db, {
+      careerId: 1,
+      directory: path.join(tmp, 'raw'),
+      reason: 'pre_match',
+      payload: 'valid-before-tamper',
+      takenAt: 900,
+      protocol: 1,
+    });
+    fs.appendFileSync(archived.record.raw_path, 'tamper');
+
+    expect(() => createCheckpoint(db, {
+      dir,
+      reason: 'pre_match',
+      careerId: 1,
+      now: 1000,
+    })).toThrow(/checksum mismatch/);
+    expect(fs.readdirSync(dir)).toEqual([]);
     expect(db.integrityProblem()).toBeNull();
     db.close();
   });

@@ -135,7 +135,9 @@ if (build && leInfo) {
 }
 
 const detected = {
+  recorder_version: 2,
   detected_at: new Date().toISOString(),
+  platform: process.platform,
   game_dir: gameDir,
   game_build: build,
   is_steam: gameDir ? fs.existsSync(path.join(gameDir, 'steam_appid.txt')) : null,
@@ -148,5 +150,17 @@ fs.writeFileSync(
   path.join(process.cwd(), 'spike', 'out', 'environment.json'),
   JSON.stringify(detected, null, 2),
 );
+if (process.env.LOCALAPPDATA) {
+  const bridgeDirectory = path.join(process.env.LOCALAPPDATA, 'Tenure', 'bridge');
+  fs.mkdirSync(bridgeDirectory, { recursive: true });
+  fs.writeFileSync(
+    path.join(bridgeDirectory, 'environment.json'),
+    JSON.stringify(detected, null, 2),
+  );
+}
 console.log('  ───────────────────────────────────────────────────────────');
-console.log('  written: spike/out/environment.json\n');
+console.log('  written: spike/out/environment.json');
+if (process.env.LOCALAPPDATA) {
+  console.log(`  written: ${path.join(process.env.LOCALAPPDATA, 'Tenure', 'bridge', 'environment.json')}`);
+}
+console.log('');

@@ -36,6 +36,22 @@ Explicitly **not** the target: console players, Ultimate Team players, anyone un
 
 Pillar 3 is the sleeper. It is a *design* differentiator (FM famously hides its reasoning), a *trust* mechanism (when sync goes wrong, the user needs to see why), and it is nearly free — the deterministic event log the simulation already needs for reproducibility *is* the explanation UI. One system, three payoffs.
 
+### The broader north star
+
+TENURE is not ultimately an event generator. It is an **institutional football
+career**. The manager negotiates decision rights, delegates authority, states
+principles, builds coalitions, spends political capital and creates precedents.
+Players, directors, agents, staff, journalists and supporters can hold different
+evidence-backed views of the same event. A deterministic Living Football
+Director then curates the most meaningful parts of that reality without changing
+it.
+
+The expansion adds one obligation to all three pillars: the player must be able
+to *author a position*, not merely answer an inbox item. “I will build through
+the academy” becomes a recorded commitment whose later fulfilment or reversal
+changes what clubs, colleagues and players believe about the manager. The full
+architecture and deliberately delayed scope are in [doc 20](20-living-football-director.md).
+
 ## 6. Deliberately not included in the identity
 
 Dropped from the brainstorm on purpose: supporter culture, ownership takeovers, tactical familiarity systems, decade-scale club culture drift, create-a-club, dynamic league narratives. All good. All Phase 5+. A solo developer who tries to ship the union of these ships nothing.

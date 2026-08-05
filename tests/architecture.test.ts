@@ -132,4 +132,29 @@ describe('architectural boundaries', () => {
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) expect(file).toMatch(/^\d{4}_[a-z0-9_]+\.sql$/);
   });
+
+  it('build-sensitive memory offsets exist in exactly one guarded Lua file', () => {
+    const bridge = path.join(ROOT, 'bridge');
+    const allowed = 'bridge/readers/fixtures_offsets.lua';
+    const violations: string[] = [];
+    const walk = (current: string) => {
+      for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+        const full = path.join(current, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+        } else if (entry.name.endsWith('.lua')) {
+          const relative = path.relative(ROOT, full).replace(/\\/g, '/');
+          const source = fs.readFileSync(full, 'utf8');
+          if (relative !== allowed && /\b0x[0-9a-f]+\b/i.test(source)) {
+            violations.push(`${relative} contains a raw hexadecimal offset`);
+          }
+        }
+      }
+    };
+    walk(bridge);
+    expect(violations, violations.join('\n')).toEqual([]);
+    const guarded = fs.readFileSync(path.join(ROOT, allowed), 'utf8');
+    expect(guarded).toContain('EXPECTED_BUILD');
+    expect(guarded).toContain('Refusing memory offsets');
+  });
 });

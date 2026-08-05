@@ -79,7 +79,7 @@ The grounded finding that shapes the recommendation: **llama.cpp converts JSON S
 |---|---|---|
 | Intent classification (L1) | **Local if present, else Haiku 4.5** | 12-way classification with grammar-constrained output is well within a small local model, and it's the most latency-sensitive call |
 | Character utterance (L0) | **Haiku 4.5** | Voice quality is the whole point; local models produce recognisably flat dialogue at this size |
-| Reaction selection (L2) | Haiku 4.5 | Small decision, needs judgement |
+| Expression emphasis (L2) | Haiku 4.5 | Chooses among mechanically identical presentation plans; never changes state |
 | Media, scouting prose | Haiku 4.5 | Volume matters more than ceiling |
 | Season/career retrospectives | **Sonnet 5** | Long-form synthesis over a large digest; once a season, so cost is irrelevant |
 | Everything, always available | **Templates** | The floor, and it must be a floor you'd ship on |

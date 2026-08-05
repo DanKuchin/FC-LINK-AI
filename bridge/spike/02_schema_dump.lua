@@ -67,6 +67,7 @@ local save_uid = ''
 pcall(function() save_uid = GetSaveUID() end)
 
 out:write(encode({
+  recorder_version = 2,
   record = 'meta',
   le_version = LE_VERSION or 'unknown',
   save_uid = save_uid,
@@ -144,6 +145,7 @@ end
 
 local elapsed = os.clock() - total_started
 out:write(encode({
+  recorder_version = 2,
   record = 'summary',
   tables = #names,
   counted = counted,

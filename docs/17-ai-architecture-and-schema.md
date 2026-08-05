@@ -34,6 +34,7 @@ flowchart TB
     subgraph NARR["packages/narrative"]
         TPL["Template renderer<br/>deterministic, always present"]
         ARC["Narrative director<br/>read-only arc detection"]
+        REC["Narrative recorder<br/>provenance + generator metadata"]
     end
 
     subgraph STORE["packages/persistence — SQLite"]
@@ -45,12 +46,14 @@ flowchart TB
         DEBUG["AI debug console"]
     end
 
-    FSM -->|candidates + facts| ORCH
-    VAL -->|valid output| EFF
+    FSM -->|selected reaction + facts| ORCH
+    VAL -->|valid prose only| REC
     VAL -.reject.-> TPL
-    TPL --> EFF
+    TPL --> REC
     ORCH -.no AI configured.-> TPL
     EFF --> DB
+    REC --> DB
+    REC --> SCREENS
     ARC --> DB
     DB --> FACTS
     DB --> MEM
@@ -58,7 +61,9 @@ flowchart TB
     DEBUG --> DB
 ```
 
-Read the diagram for the two things it deliberately lacks: there is **no arrow from `AI` to `DB`**, and **no arrow from `AI` to `EFF` that bypasses `VAL`**.
+Read the diagram for the two things it deliberately lacks: there is **no arrow
+from `AI` to `DB`** and **no arrow from `AI` to `EFF` at all**. Validation can
+authorise prose to be recorded; it cannot convert prose into a state effect.
 
 ## 2. Sequence diagrams
 
@@ -72,6 +77,7 @@ sequenceDiagram
     participant SIM as Simulation
     participant AI as AI orchestrator
     participant P as Provider
+    participant N as Narrative recorder
     participant DB as SQLite
 
     SIM->>DB: write sim_event (result imported)
@@ -86,10 +92,12 @@ sequenceDiagram
     P-->>AI: structured output
     AI->>AI: schema → grounding → permission → consistency
     alt valid
-        AI->>DB: narrative_event (generator='llm') + ai_call log
+        AI->>N: accepted prose + provenance + ai_call result
+        N->>DB: narrative_event (generator='llm') + ai_call log
     else invalid
         AI->>AI: regenerate once → still invalid → template
-        AI->>DB: narrative_event (generator='template')
+        AI->>N: deterministic template + provenance
+        N->>DB: narrative_event (generator='template')
     end
     AI-->>UI: utterance + valid reply intents
     U->>UI: free text "you'll get your starts back after Christmas"
@@ -156,10 +164,10 @@ sequenceDiagram
 
 ## 3. Database additions
 
-Three migrations on top of `0001_init.sql`.
+Three future migrations on top of the current Phase 2 schema (`0004`).
 
 ```sql
--- 0002_characters_memory_emotion.sql
+-- 0005_characters_memory_emotion.sql
 --   character_memories        (doc 12 §2.3)
 --   memory_summaries          (doc 12 §2.3)
 --   character_emotions        (doc 12 §3.1)
@@ -173,7 +181,7 @@ CREATE TABLE character_voices (
   PRIMARY KEY (career_id, character_type, character_id)
 );
 
--- 0003_narrative_arcs.sql
+-- 0006_narrative_arcs.sql
 --   narrative_arcs            (doc 14 §1.2)
 CREATE TABLE reaction_cooldowns (
   career_id      INTEGER NOT NULL REFERENCES careers(id),
@@ -193,7 +201,7 @@ CREATE TABLE drama_budget (
   PRIMARY KEY (career_id, season_id)
 );
 
--- 0004_ai_observability.sql   APPEND ONLY. This is the replay + audit surface.
+-- 0007_ai_observability.sql   APPEND ONLY. This is the replay + audit surface.
 CREATE TABLE ai_calls (
   id                INTEGER PRIMARY KEY,
   career_id         INTEGER NOT NULL REFERENCES careers(id),
@@ -206,7 +214,7 @@ CREATE TABLE ai_calls (
   schema_version    INTEGER NOT NULL,
   fact_sheet_json   TEXT    NOT NULL,   -- exactly what the model was given
   memory_ids_json   TEXT    NOT NULL,
-  candidates_json   TEXT,               -- the menu, when applicable
+  expression_plans_json TEXT,            -- mechanically identical presentation menu
   raw_output        TEXT,
   validation_json   TEXT    NOT NULL,   -- per-gate pass/fail + reasons
   outcome           TEXT    NOT NULL    -- accepted | regenerated | template_fallback | cached | skipped
@@ -228,7 +236,7 @@ CREATE TABLE ai_response_cache (
   hits         INTEGER NOT NULL DEFAULT 0
 );
 
--- narrative_events gains a provenance column (0004)
+-- narrative_events gains a provenance column (0007)
 ALTER TABLE narrative_events ADD COLUMN ai_call_id INTEGER REFERENCES ai_calls(id);
 ```
 
@@ -298,17 +306,17 @@ export interface FactSheet {
   readonly untrusted: Readonly<Record<string, string>>;   // names — delimited in the prompt
 }
 
-export interface ReactionCandidate {
+export interface ExpressionPlan {
   readonly id: string;                         // the menu is closed
-  readonly kind: string;
-  readonly effects: readonly Effect[];         // pre-computed by the simulation
-  readonly preconditionsMet: true;
+  readonly tone: string;
+  readonly emphasisTags: readonly string[];
+  readonly mechanicallyEquivalent: true;
 }
 
 export interface RenderRequest<T> {
   readonly purpose: 'utterance' | 'intent' | 'media' | 'scouting' | 'summary';
   readonly facts: FactSheet;
-  readonly candidates?: readonly ReactionCandidate[];
+  readonly expressionPlans?: readonly ExpressionPlan[];
   readonly schema: JsonSchema<T>;
   readonly priority: 'interactive' | 'background';
   readonly promptVersion: string;
@@ -330,20 +338,20 @@ export interface NarrativeProvider {                  // already declared in doc
 ### The orchestrator loop
 
 ```
-async function renderReaction(ctx, characterRef, candidates, triggerEvent):
+async function renderReaction(ctx, characterRef, selectedReaction, expressionPlans, triggerEvent):
     if not ctx.settings.aiEnabled:                  return template(...)
     if costController.overBudget():                 return template(..., reason: 'budget')
 
-    key = hash(triggerEvent.id, candidates.map(c => c.id), provider, model, SCHEMA_VERSION)
+    key = hash(triggerEvent.id, selectedReaction.id, expressionPlans.map(p => p.id), provider, model, SCHEMA_VERSION)
     if cached = responseCache.get(key):             return cached          // same event, same words, forever
 
     facts    = factSheet.assemble(ctx, characterRef, triggerEvent)         // whitelist + knowledge scope
     memories = memory.retrieve(characterRef, triggerEvent, limit: 7)       // visibility-filtered
-    prompt   = promptBuilder.build(L1..L5, facts, memories, candidates)    // stable layers first
+    prompt   = promptBuilder.build(L1..L5, facts, memories, expressionPlans) // stable layers first
 
     for attempt in 1..2:
         raw    = await provider.complete(prompt, schema)                   // structured output
-        report = validate(raw, facts, candidates, characterRef)            // 5 gates
+        report = validate(raw, facts, expressionPlans, characterRef)       // 5 gates
         if report.ok:
             responseCache.put(key, raw)
             aiCalls.record(...)                                            // full replay record
@@ -358,7 +366,7 @@ async function renderReaction(ctx, characterRef, candidates, triggerEvent):
 
 ## 6. AI debug console
 
-A developer screen (and, redacted, a user-exportable bundle). For any `ai_call` it shows: the trigger event and its causal chain · the exact `FactSheet` · the retrieved memories with their scores · the character's deterministic state · the candidate menu · prompt version and rendered prompt with the cache breakpoint marked · provider, model, and whether the cache was read · raw output · per-gate validation results with reasons · the effects the simulation applied · tokens, cost, latency, cache status.
+A developer screen (and, redacted, a user-exportable bundle). For any `ai_call` it shows: the trigger event and its causal chain · the exact `FactSheet` · the retrieved memories with their scores · the character's deterministic state · the simulation-selected reaction · the mechanically identical expression-plan menu · prompt version and rendered prompt with the cache breakpoint marked · provider, model, and whether the cache was read · raw output · per-gate validation results with reasons · the effects the simulation had already applied · tokens, cost, latency, cache status.
 
 **Deterministic replay** — the property that makes the whole thing debuggable:
 

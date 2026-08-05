@@ -10,8 +10,8 @@
 |---|---|---|---|
 | **L0 — Render only** | Receives a frozen fact sheet, returns prose. No tools at all. | Character utterances, media, scouting prose, retrospectives | Stage 1 |
 | **L1 — Parse only** | Receives user text, returns one intent from a closed enum. | Free-text conversation | Stage 2 |
-| **L2 — Select from menu** | Receives 2–5 pre-validated candidate reactions, returns one id + wording. | Character reaction choice | Stage 3 |
-| **L3 — Propose** | May emit a *proposal* the simulation validates and may reject. Never applied without either a rule check or user confirmation. | Staff recommendations, narrative arc suggestions | Stage 4 |
+| **L2 — Select expression** | Receives 2–5 mechanically identical presentation plans, returns one id + wording. | Tone, emphasis, memory reference | Stage 3 |
+| **L3 — Synthesize sources** | Organises a supplied, deterministic evidence set into a non-mechanical artifact. | Retrospectives, staff explanation, arc digest | Stage 4 |
 | **L4 — Act** | **Does not exist. There is no level at which a model mutates state.** | — | never |
 
 ### 1.2 Why there are no read tools
@@ -20,19 +20,24 @@ The brief lists read tools (`read_player_profile`, `read_contract`, …). This d
 
 The fact-sheet assembler is deterministic TypeScript with the same shape as a tool layer — it just runs before the call rather than during it.
 
-### 1.3 Proposal tools (L3, Stage 4+)
+### 1.3 There are no runtime proposal tools
 
-Defined with `strict: true` and `additionalProperties: false` so parameter validation is guaranteed **[C]**:
+L2 and L3 use structured outputs over facts already supplied. They do not call
+tools and cannot propose reactions, staff decisions, press angles, arc attention,
+memory rows or calculations. Those are selected by deterministic systems before
+the model call.
 
-| Tool | Returns | Validation before anything happens |
-|---|---|---|
-| `propose_reaction` | candidate id + expression | id must be in the supplied menu |
-| `propose_staff_recommendation` | recommendation ref + emphasis | must be within `authority` and `knowledge` |
-| `propose_press_story` | angle + source `sim_event_id` | event must exist, be visible to that journalist |
-| `propose_arc_attention` | arc id + delta | arc must exist; delta clamped |
-| `request_calculation` | a named deterministic computation | fixed catalogue; the sim computes and returns |
+During development, a model may help a designer draft event-family graphs,
+template variants, voice exemplars and adversarial tests. Those outputs are
+non-canonical source material: a human reviews them, converts accepted ideas into
+typed deterministic rules, and the normal test suite proves them before they
+ship. No development-authoring tool is packaged into the runtime.
 
-**Explicitly forbidden and structurally impossible** (no tool, no schema field, no code path): changing money, moving players, editing attributes, completing transfers, altering results, creating injuries, editing tables, deleting records, touching FC memory, arbitrary SQL, asserting unsupported facts.
+**Explicitly forbidden and structurally impossible** (no tool, no schema field,
+no code path): proposing or changing money, relationships, authority, beliefs,
+memories, arc state or attention, moving players, editing attributes, completing
+transfers, altering results, creating injuries, editing tables, deleting records,
+touching FC memory, arbitrary SQL, asserting unsupported facts.
 
 ---
 
@@ -65,24 +70,24 @@ interface CharacterUtterance extends AiEnvelope {
   emotional_state_expressed: EmotionBand;
 }
 
-// 2 — Character reaction (Stage 3: selection from a menu)
-interface CharacterReaction extends AiEnvelope {
-  chosen_candidate_id: string;        // MUST be one of the supplied ids
+// 2 — Character expression (Stage 3: mechanically identical plans only)
+interface CharacterExpression extends AiEnvelope {
+  chosen_expression_plan_id: string;  // MUST be one of the supplied ids
   rationale_facts: number[];          // which facts drove it
   expression: CharacterUtterance;
 }
 
 // 3 — Player request
 interface PlayerRequest extends AiEnvelope {
-  request_kind: 'playing_time'|'new_contract'|'transfer'|'role_change'|'reassurance';
-  escalation_stage: 'concern'|'private_warning'|'formal_request'|'agent_involved'|'public_pressure'|'transfer_request';
+  request_kind: 'playing_time'|'new_contract'|'transfer'|'role_change'|'reassurance'; // MUST equal supplied reaction
+  escalation_stage: 'concern'|'private_warning'|'formal_request'|'agent_involved'|'public_pressure'|'transfer_request'; // MUST equal supplied stage
   stated_reason_ref: number;          // a sim_event id
   expression: CharacterUtterance;
 }
 
 // 4 — Agent negotiation move.  NOTE: no numeric fields anywhere.
-interface AgentNegotiationMove extends AiEnvelope {
-  move: 'accept'|'counter'|'stall'|'deadline'|'invoke_rival'|'leak'|'ultimatum'|'walk_away';
+interface AgentNegotiationExpression extends AiEnvelope {
+  move: 'accept'|'counter'|'stall'|'deadline'|'invoke_rival'|'leak'|'ultimatum'|'walk_away'; // fixed by sim; equality-validated
   justification_ref: number;
   tone: 'cordial'|'businesslike'|'pressuring'|'hostile';
   prose: string;                      // may contain {{fee}}, {{wage}}, {{deadline}} slots ONLY
@@ -90,7 +95,7 @@ interface AgentNegotiationMove extends AiEnvelope {
 
 // 5 — Staff recommendation
 interface StaffRecommendation extends AiEnvelope {
-  recommendation_ref: string;         // from the supplied candidate set
+  recommendation_ref: string;         // fixed by sim; MUST equal supplied ref
   strength: 'weak'|'moderate'|'strong';
   caveats: string[];
   declines_to_answer: boolean;        // the honest "not my area" path
@@ -117,20 +122,19 @@ interface PressInterpretation extends AiEnvelope {
   alternatives: { intent: ManagerIntent; confidence: number }[];   // for the < 0.75 path
 }
 
-// 8 — Memory creation (Stage 3+, still validated)
-interface MemoryProposal extends AiEnvelope {
-  holder: CharacterRef; subject?: CharacterRef;
-  kind: string; significance: number; valence: number;
-  visibility: 'public'|'private'|'club'|'pair';
-  facts: Record<string, string | number | boolean>;
+// 8 — Memory recall. Memory formation itself is deterministic.
+interface MemoryRecall extends AiEnvelope {
+  holder: CharacterRef;
+  referenced_memory_ids: number[];    // subset of supplied visible memories
+  prose: string;
 }
 
-// 9 — Narrative arc update
-interface ArcUpdate extends AiEnvelope {
+// 9 — Narrative arc digest. Arc state and attention are deterministic.
+interface ArcDigest extends AiEnvelope {
   arc_id: number;
-  attention_delta: number;            // clamped to ±20 by the sim
-  suggested_state?: 'active'|'dormant'|'resolved';
-  justification_event_ids: number[];
+  evidence_event_ids: number[];
+  framing: string;
+  unresolved: string[];
 }
 
 // 10 — Season-summary claim
@@ -141,11 +145,12 @@ interface SummaryClaim extends AiEnvelope {
 interface SeasonSummary extends AiEnvelope { title: string; sections: { heading: string; claims: SummaryClaim[] }[] }
 
 // 11 — User-intent interpretation (conversation) — same shape as (7)
-// 12 — Suggested deterministic action
-interface ActionProposal extends AiEnvelope {
-  action_id: string;                  // from the supplied catalogue
-  params_ref: string;
-  requires_user_confirmation: true;   // literal true — not a variable
+// 12 — Decision explanation. Valid intents and effects already exist.
+interface DecisionExplanation extends AiEnvelope {
+  decision_id: string;
+  why_now_event_ids: number[];
+  stake_categories: ('relationship'|'authority'|'money'|'promise'|'public_position')[];
+  options: { intent_id: string; changes_categories: string[]; prose: string }[];
 }
 ```
 
@@ -232,7 +237,8 @@ that is a later escalation stage and is not available to him.
 collapsed deal in Jan 2027, #71204). Move selected by the engine: `deadline`.
 Genuine competing interest: NO (this is a bluff — the sim knows; you do not
 reveal that). Facts: contract expires in 11 months; client is a first-team regular.
-[L5] Produce AgentNegotiationMove with move="deadline". Prose only.
+[L5] Produce AgentNegotiationExpression with the supplied move="deadline".
+The move is fixed; prose only.
 Use {{deadline}} and {{wage}} slots — do NOT write any number yourself.
 ```
 

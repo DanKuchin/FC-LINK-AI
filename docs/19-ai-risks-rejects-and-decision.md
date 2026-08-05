@@ -22,6 +22,10 @@
 | 14 | Content authoring load (templates, lexicons) | **High** | Med | Template coverage test failing; repetitive template text | Templates are data; coverage is a CI gate; prioritise the ten most-seen events | Accept less variety; community contribution later | Stage 0 |
 | 15 | Scope creep — building Stage 5 before Stage 2 lands | **High** | High | Journalists appearing before the board works | The stage gates are the contract | Cut back to the slice | all |
 | 16 | Users expecting an open-ended AI chat | Med | Low-Med | "Why can't I just talk to anyone?" | Say plainly what the system is and why | Explain the design; do not build it | Stage 2+ |
+| 17 | **The Director quietly manipulates outcomes for drama** | Med | **Fatal to trust** | Same actions produce different state with Director off; suspiciously timed crises | Director has a read-only interface; non-interference replay gate; no target emotional curve | Disable Director and invalidate the feature until replay equality is restored | Stage 4+ |
+| 18 | Social behavior depends on prompt/model accidents | High if LLM-decided | High | Provider or persona-format change shifts relationships or aggregate outcomes | No runtime LLM social decisions; micro/meso/macro robustness audit | Revert to deterministic candidate and propagation rules | Stage 1+ |
+| 19 | Institutional breadth becomes invisible bookkeeping | Med | High | Testers cannot explain who had authority or why a decision mattered | Decision lens; one screen per state; “property changes a decision or is cut” | Remove state that does not alter an understood decision | Stage 6 |
+| 20 | Broader vision destroys the shipping sequence | **High** | **Fatal to delivery** | Authority, leaks or chapters begin before Board & Mandate works | Tickets 41–48 are horizon-gated; Phase 0–3 order unchanged | Freeze new systems; return to the last playable gate | all |
 
 ---
 
@@ -48,6 +52,25 @@ For each: why it's attractive, why it's dangerous, and whether a safer version e
 *Attractive:* surprise, drama, "emergent storytelling."
 *Dangerous:* it severs narrative from simulation. Once a story can exist without a cause, no story has a cause, and the pillar collapses.
 *Safer version:* **yes.** Let the *simulation* generate more event types — that is where surprise should come from — and let the model dramatise them.
+
+**AI proposing bounded mechanical effects.**
+*Attractive:* the model appears creative while a validator clamps unsafe values.
+*Dangerous:* a clamp limits magnitude, not causality. Changing model, prompt or
+provider can still turn one career into `trust -4` and another into
+`transfer_openness +8`, destroying deterministic replay and making balance
+impossible to attribute.
+*Safer version:* **yes.** Author deterministic event families and reaction state
+machines. At runtime the model receives the selected reaction, a whitelisted
+fact sheet, and mechanically equivalent expression plans; it writes only the
+expression and never receives an effect field to reproduce or alter.
+
+**A Director targeting an emotional trajectory.**
+*Attractive:* cinematic pacing with planned calm and crisis beats.
+*Dangerous:* the system begins manufacturing or withholding pressure to steer
+the player, which is hidden difficulty adjustment under a narrative name. Quiet
+weeks and abruptly ended arcs are legitimate consequences of player agency.
+*Safer version:* attention budgets and arc detection only. The Director changes
+what is surfaced, never what becomes true.
 
 **AI controlling club finances.**
 *Attractive:* organic-feeling economics.
@@ -101,9 +124,10 @@ For each: why it's attractive, why it's dangerous, and whether a safer version e
 | 3 · Character reasoning | 50–80 |
 | 4 · Narrative director | 60–90 |
 | 5 · World intelligence | 120–180 |
-| **AI total** | **410–620** |
+| 6 · Institutional career | 140–220 |
+| **AI + institutional total** | **550–840** |
 | Base product (doc 08) | 600–970 |
-| **Combined** | **1,010–1,590 h ≈ 20–30 months at 12.5 h/week** |
+| **Combined** | **1,150–1,810 h ≈ 21–34 months at 12.5 h/week** |
 
 Content authoring — templates, voice lexicons, evaluation corpora — is inside those numbers and is roughly **25% of Stage 0**. It is the part most likely to be underestimated, because it is writing rather than coding.
 

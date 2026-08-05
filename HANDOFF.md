@@ -6,6 +6,18 @@
 
 Read this file first. It is the map, the reasoning that didn't fit in the docs, and the list of things not to do.
 
+> **Continuation note (2026-07-28):** Sections 1–2 below describe the original
+> baseline on `main`, not the current `codex/phase-0-2` branch. That branch now
+> contains the Electron application and the schema-independent Phase 0–2
+> foundation. Read [`docs/09-phase-0-2-implementation-audit.md`](docs/09-phase-0-2-implementation-audit.md)
+> immediately after this file for the current evidence and remaining gates, then
+> [`docs/20-living-football-director.md`](docs/20-living-football-director.md)
+> for the broader product direction. The
+> Phase 0 Windows/FC evidence blocker and every “do not build” boundary in this
+> handoff remain authoritative.
+> Current local evidence: 29 test files / 187 tests, with desktop startup
+> checkpointing and migrating a schema-v1 career through schema v4.
+
 ---
 
 ## 1. What this is in one paragraph
@@ -32,7 +44,7 @@ An original desktop companion management game for **EA Sports FC 26** (PC, offli
 | `tests/architecture.test.ts` | **Done.** Boundaries enforced as a test, not lint config. |
 | `spike/` + `bridge/spike/` | **Written, never run.** See §3. |
 | `docs/00–08` | Product + technical plan. |
-| `docs/10–19` | AI layer design. |
+| `docs/10–20` | AI and broader institutional-career design. |
 
 ### Not started
 Electron shell · any UI · import pipeline · snapshot diffing · event log · advance-time loop · board system · anything AI.
@@ -101,11 +113,11 @@ This underwrites three separate promises: a save reloads to the same world, a bu
 
 ### 4.5 The AI doctrine — the simulation decides, AI expresses
 
-Docs 10–19. The short version: AI has exactly two jobs — turn a simulation-decided fact into words, and turn the user's words into one of a closed intent set. Enforced four ways rather than asserted:
+Docs 10–20. The short version: AI has exactly two jobs — turn a simulation-decided fact into words, and turn the user's words into one of a closed intent set. The Living Football Director is deterministic and read-only; it curates attention but never proposes effects. Enforced four ways rather than asserted:
 
 1. **No write path** from any model output to a mutating statement.
 2. **Facts are assembled and handed over, never fetched.** I explicitly rejected giving the model read tools — a journalist with `read_contract` can fetch a wage they shouldn't know; a journalist handed a fact sheet cannot, because the number isn't in the context window. Prompt instructions are not controls.
-3. **Numbers are never generated.** Prose carries `{{fee}}` slots; the sim substitutes. `AgentNegotiationMove` has no numeric fields at all.
+3. **Numbers are never generated.** Prose carries `{{fee}}` slots; the sim substitutes. `AgentNegotiationExpression` has no numeric fields at all.
 4. **`narrative_events.sim_event_id` is `NOT NULL` with an FK** — already in `0001_init.sql`, already tested. An ungrounded line physically cannot be stored.
 
 **The risk I rank first is not hallucination or cost. It's volume.** Generated dialogue is cheap and infinite; a manager's attention isn't. The importance scorer's success metric is its *refusal* rate — target 0–2 rendered reactions per week out of 40+ candidates.
@@ -182,14 +194,14 @@ Safe work that's robust to any spike outcome:
 |---|---|
 | [00](docs/00-verdict-and-feasibility.md) | **Start here for the technical picture.** Capability-by-capability evidence, feasibility matrix, confirmed vs assumed |
 | [01](docs/01-product-concept.md) | Name, pitch, audience, pillars, differentiation, the gameplay loop |
-| [02](docs/02-systems-and-simulation.md) | Ten game systems; fidelity tiers; time model; determinism; advance-time pseudocode |
+| [02](docs/02-systems-and-simulation.md) | Twelve game systems; fidelity tiers; institutional authority; manager identity; time model; determinism; advance-time pseudocode |
 | [03](docs/03-sync-architecture.md) | Protocol, identity mapping, **source-of-truth matrix**, checkpoints, write pipeline |
 | [04](docs/04-stack-architecture-repo-schema.md) | Stack decision, Mermaid architecture, repo tree, full SQL schema |
 | [05](docs/05-ui-specification.md) | Design principles, navigation, accessibility, 20 screen specs |
 | [06](docs/06-mvp-roadmap-tickets.md) | **MVP scope, 8 phases, the first 30 tickets** |
 | [07](docs/07-testing-and-narrative.md) | Test levels, invariants, CI soak plan, the AI boundary |
 | [08](docs/08-distribution-legal-business-risk.md) | Packaging, Bridge Doctor, FC-patch runbook, legal, business model, risk register, **abort conditions** |
-| [10–19](docs/10-ai-verdict-and-doctrine.md) | The AI layer. Doctrine → opportunity map → character/memory/emotion → conversation/actors → narrative/events → tools/schemas/prompts → safety/cost/latency → architecture → **40 tickets** → risks/verdict |
+| [10–20](docs/10-ai-verdict-and-doctrine.md) | AI + institutional layer. Doctrine → opportunity map → character/memory/emotion → conversation/actors → narrative/events → tools/schemas/prompts → safety/cost/latency → architecture → **48 tickets** → risks/verdict → broader Living Football Director vision |
 | [adr/0001](docs/adr/0001-sqlite-driver.md) | The sqlite driver decision and what it costs |
 | [compatibility.md](docs/compatibility.md) | This machine's detected versions + the support policy |
 | [spike-report.md](docs/spike-report.md) | Auto-generated. All seven checks currently UNKNOWN. |
@@ -202,7 +214,7 @@ Safe work that's robust to any spike outcome:
 - **Nothing about the bridge has been executed.** Not one Lua script has run against a real game.
 - The server, detector, migrations, RNG, checkpoints and compat manifest **have** been executed and tested locally.
 - The AI cost figures in doc 16 §3 are estimates over assumed prompt sizes. Re-measure with `count_tokens` before publishing any of them.
-- Effort estimates (600–970 h base, +410–620 h AI) are honest ranges, not motivational ones.
+- Effort estimates (600–970 h base, +550–840 h AI + institutional layer) are honest ranges, not motivational ones.
 
 ## 9. Legal posture, briefly
 

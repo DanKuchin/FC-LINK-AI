@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { gradePhaseZero } from './report-core.mjs';
 
 const LOCALAPPDATA = process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local');
 const SPIKE = path.join(LOCALAPPDATA, 'Tenure', 'spike');
@@ -32,11 +33,24 @@ const lastNdjson = (p) => {
     return JSON.parse(lines[lines.length - 1]);
   } catch { return null; }
 };
+const readNdjson = (p) => {
+  try {
+    return fs.readFileSync(p, 'utf8').trim().split('\n')
+      .map((line) => { try { return JSON.parse(line); } catch { return null; } })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+};
 
 // ── gather ───────────────────────────────────────────────────────────────────
-const env = readJson(path.join(OUT, 'environment.json'));
-const hello = readJson(path.join(OUT, 'hello.json')) ?? readJson(path.join(SPIKE, 'hello_fallback.json'));
-const helloViaHttp = fs.existsSync(path.join(OUT, 'hello.json'));
+const rawEnv = readJson(path.join(OUT, 'environment.json'));
+const env = rawEnv?.recorder_version === 2 ? rawEnv : null;
+const helloHistory = readNdjson(path.join(OUT, 'server.ndjson'))
+  .filter((entry) => entry.recorder_version === 2 && entry.kind === 'hello');
+const recordedHello = helloHistory.at(-1)?.body ?? null;
+const rawFallbackHello = readJson(path.join(SPIKE, 'hello_fallback.json'));
+const fallbackHello = rawFallbackHello?.recorder_version === 2 ? rawFallbackHello : null;
 
 const schemaFile = newest(SPIKE, /^schema_\d+\.ndjson$/);
 const schemaMeta = schemaFile ? firstNdjson(path.join(SPIKE, schemaFile)) : null;
@@ -60,47 +74,25 @@ const timing = readJson(path.join(SPIKE, exportDir ?? '', 'timing.json')) ?? rea
 const fixturesFile = newest(SPIKE, /^fixtures_\d+\.ndjson$/);
 const fixtures = fixturesFile ? firstNdjson(path.join(SPIKE, fixturesFile)) : null;
 
-const persist = readJson(path.join(SPIKE, 'persist_test.json'));
+const persistenceHistory = readNdjson(path.join(SPIKE, 'persist_history.ndjson'));
+const matchDiff = readJson(path.join(SPIKE, 'match_diff.json'));
+const transferWrite = readJson(path.join(SPIKE, 'transfer_write_result.json'));
 
 // ── grade ────────────────────────────────────────────────────────────────────
-const checks = [];
-const add = (name, state, detail) => checks.push({ name, state, detail });
-
-add('1. Career detected and save UID stable',
-  hello ? (hello.in_career && hello.save_uid ? 'PASS' : 'FAIL') : 'UNKNOWN',
-  hello ? `in_career=${hello.in_career}, save_uid=${hello.save_uid || '(none)'}` : 'spike 01 not run');
-
-add('2. Transport works (Lua → local HTTP server)',
-  hello ? (helloViaHttp ? 'PASS' : 'PARTIAL') : 'UNKNOWN',
-  helloViaHttp ? 'server received /v1/hello' : hello ? 'file fallback only — HTTP blocked or server not running' : 'spike 01 not run');
-
-add('3. Real schema captured',
-  schemaSummary ? 'PASS' : 'UNKNOWN',
-  schemaSummary ? `${schemaSummary.tables} tables, ${schemaSummary.total_rows_seen} rows, ${schemaSummary.elapsed_ms} ms` : 'spike 02 not run');
-
-const projected = timing?.projected_full_import_ms ?? timing?.export_total_ms;
-add('4. Snapshot cost acceptable (< 90 s projected import)',
-  projected == null ? 'UNKNOWN' : projected < 90000 ? 'PASS' : projected < 300000 ? 'CONCERN' : 'FAIL',
-  projected == null ? 'spike 03 not run' : `${(projected / 1000).toFixed(1)} s projected`);
-
-add('5. Fixtures / results readable on this build',
-  fixtures ? (fixtures.verdict === 'PASS' ? 'PASS' : fixtures.verdict === 'PASS_WITH_DOUBT' ? 'CONCERN' : 'FAIL') : 'UNKNOWN',
-  fixtures ? `${fixtures.verdict}: ${fixtures.checks?.fixtures_found ?? 0} fixtures, ${fixtures.checks?.played_fixtures ?? 0} played` : 'spike 04 not run');
-
-add('6. Match extraction by snapshot diff',
-  'UNKNOWN',
-  'requires two exports either side of a played match — Ticket 26');
-
-let persistState = 'UNKNOWN', persistDetail = 'spike 05/06 not run';
-if (persist?.tests?.length) {
-  const inSession = persist.tests.filter((t) => t.in_session_write).length;
-  persistState = 'PARTIAL';
-  persistDetail = `${inSession}/${persist.tests.length} in-session writes landed; durability recorded by spike 06`;
-}
-add('7. A write proven durable across a restart', persistState, persistDetail);
+const { gates: checks, proceed } = gradePhaseZero({
+  environment: env,
+  helloHistory,
+  schemaMeta,
+  schemaSummary,
+  timing,
+  fixtures,
+  matchDiff,
+  persistenceHistory,
+  transferWrite,
+});
 
 // ── write ────────────────────────────────────────────────────────────────────
-const icon = { PASS: '🟢', PARTIAL: '🟡', CONCERN: '🟡', FAIL: '🔴', UNKNOWN: '⚪' };
+const icon = { PASS: '🟢', CONCERN: '🟡', FAIL: '🔴', UNKNOWN: '⚪' };
 const lines = [];
 lines.push('# Phase 0 — spike report');
 lines.push('');
@@ -116,9 +108,17 @@ if (env) {
 } else {
   lines.push('- not detected — run `node spike/detect.mjs`');
 }
-if (hello) lines.push(`- Live Editor reported: \`${hello.le_version}\`, in-game date ${hello.in_game_date || '?'}`);
+if (recordedHello) {
+  lines.push(`- Live Editor reported over HTTP: \`${recordedHello.le_version}\`, in-game date ${recordedHello.in_game_date || '?'}`);
+} else if (fallbackHello) {
+  lines.push(`- Live Editor file fallback only: \`${fallbackHello.le_version}\`, in-game date ${fallbackHello.in_game_date || '?'}`);
+}
 lines.push('');
-lines.push('## The seven checks');
+lines.push('## Phase 0 gates');
+lines.push('');
+lines.push('This table combines the seven technical questions in doc 00 §3.9 with the');
+lines.push('additional measurable exit safeguards in doc 06. Only an all-PASS table');
+lines.push('authorises Phase 1; `CONCERN`, `FAIL`, and `UNKNOWN` all remain blocking.');
 lines.push('');
 lines.push('| | Check | Result | Detail |');
 lines.push('|---|---|---|---|');
@@ -152,15 +152,15 @@ if (timing?.tables) {
   lines.push('');
 }
 
-const failing = checks.filter((c) => c.state === 'FAIL');
-const unknown = checks.filter((c) => c.state === 'UNKNOWN');
+const blocking = checks.filter((c) => c.state !== 'PASS');
 lines.push('## Verdict');
 lines.push('');
-if (failing.length === 0 && unknown.length === 0) {
-  lines.push('All seven checks answered and none failed. **Proceed to Phase 1.**');
+if (proceed) {
+  lines.push('Every Phase 0 technical question and roadmap safeguard passed. **Proceed to Phase 1.**');
 } else {
-  if (failing.length) lines.push(`**${failing.length} check(s) failing.** Re-read the abort conditions in \`docs/08-distribution-legal-business-risk.md\` Part F before writing Phase 1 code.`);
-  if (unknown.length) lines.push(`${unknown.length} check(s) still unanswered: ${unknown.map((u) => u.name.split('.')[0]).join(', ')}.`);
+  lines.push(`**Do not claim Phase 0 complete. ${blocking.length} gate(s) are not PASS:** ` +
+    `${blocking.map((gate) => gate.id).join(', ')}.`);
+  lines.push('Re-read the abort conditions in `docs/08-distribution-legal-business-risk.md` Part F before schema-dependent implementation.');
 }
 lines.push('');
 
