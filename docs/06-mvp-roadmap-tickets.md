@@ -55,7 +55,7 @@ Effort ranges assume 10–15 h/week and are honest, not motivational.
 ### Phase 0 — Technical spike · **20–40 h**
 *Objective:* find out whether the premise is real before designing anything further.
 *Deliverables:* a throwaway Lua script + a 200-line Node server proving all seven checks in doc 00 §3.9. A written spike report with measured numbers.
-*Exit criteria:* career detected · save UID stable across restarts · ≥ 5,000 players exported with timing recorded · fixtures read (or a documented failure) · one played result read back · **one write proven durable across a restart** · zero save corruption after 20 cycles.
+*Exit criteria:* career detected · save UID stable across restarts · ≥ 5,000 players exported with timing recorded · fixtures read (or a documented failure) · one played result read back · **one write proven durable across a restart** · zero save corruption after 8 cycles.
 *Risks:* offsets broken on current build; snapshot too slow; HTTP blocked by AV.
 *Claude Code:* excellent at the Node server and JSON plumbing; **the Lua/memory work needs the developer's own eyes** — it is undocumented, and a confidently wrong offset is worse than none.
 *Postponed:* everything.

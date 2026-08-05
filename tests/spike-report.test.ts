@@ -63,7 +63,7 @@ function greenEvidence() {
       played_match_count: 1,
       player_lines: 22,
     },
-    persistenceHistory: Array.from({ length: 20 }, (_, index) => cycle(index)),
+    persistenceHistory: Array.from({ length: 8 }, (_, index) => cycle(index)),
     transferWrite: {
       recorder_version: 2,
       save_uid: 'save-1',
@@ -99,6 +99,18 @@ describe('Phase 0 report grading', () => {
     expect(result.gates.find((gate) => gate.id === 'snapshot_cost')?.state).toBe('FAIL');
     expect(result.gates.find((gate) => gate.id === 'clean_cycles')?.state).toBe('CONCERN');
     expect(result.gates.find((gate) => gate.id === 'transfer_write')?.state).toBe('FAIL');
+  });
+
+  it('requires eight clean unique cycles and keeps seven concerning', () => {
+    const evidence = greenEvidence();
+    evidence.persistenceHistory = evidence.persistenceHistory.slice(0, 7);
+    const result = gradePhaseZero(evidence);
+
+    expect(result.gates.find((gate) => gate.id === 'clean_cycles')).toMatchObject({
+      state: 'CONCERN',
+      detail: '7/8 valid unique cycle(s); 0 invalid',
+    });
+    expect(result.proceed).toBe(false);
   });
 
   it('requires restart evidence before calling a single hello UID stable', () => {

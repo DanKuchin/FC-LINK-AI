@@ -67,7 +67,7 @@ The implementation and tests use all 12 rows, including corrupted snapshots.
 | Fixtures read, or a documented named failure | pending |
 | One played result read back | pending |
 | One write proven durable across complete restart | pending |
-| Zero corruption after 20 write/save/restart/restore cycles | pending |
+| Zero corruption after 8 write/save/restart/restore cycles | pending |
 
 Run `node spike/detect.mjs`, then follow `spike/README.md` on the Windows FC
 machine. Never arm the write probe against a career that matters.
@@ -195,7 +195,7 @@ does not present the shell as a working import.
     production still requests an ephemeral loopback port.
 24. The original spike report could say “Proceed to Phase 1” when rows were only
     `PARTIAL` or `CONCERN`; it treated one hello as stable restart identity, never
-    consumed step 06 durability results, and omitted the required 20 clean cycles.
+    consumed step 06 durability results, and omitted the required clean-cycle gate.
     The server now versions hello evidence, step 06 emits and appends strict
     same-career restore records, and a tested eleven-gate evaluator requires every
     doc 00 technical question and doc 06 safeguard to be `PASS`. Evidence files

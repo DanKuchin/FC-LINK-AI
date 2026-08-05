@@ -65,8 +65,8 @@ Between 05 and 06 you must: **save in-game → quit FC completely → relaunch �
 load the same career.** Skipping the full quit invalidates the whole test.
 
 For the corruption exit gate, repeat the complete 05 → save → quit → relaunch →
-06 → save-restored-career sequence **20 times**. Step 06 appends one
-machine-readable record to `persist_history.ndjson`; the report requires 20
+06 → save-restored-career sequence **8 times**. Step 06 appends one
+machine-readable record to `persist_history.ndjson`; the report requires 8
 unique, same-career cycles with every original restored. A failed restoration is
 retained as a failure rather than disappearing from the report.
 

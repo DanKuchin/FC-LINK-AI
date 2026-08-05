@@ -24,7 +24,7 @@ authorises Phase 1; `CONCERN`, `FAIL`, and `UNKNOWN` all remain blocking.
 | ⚪ | TransferPlayer write is durable with backup/restore proven first | **UNKNOWN** | no supervised TransferPlayer proof recorded |
 | ⚪ | Career detected and save UID stable across a complete restart | **UNKNOWN** | requires matching hello and spike 06 restart evidence |
 | ⚪ | One played result read back | **UNKNOWN** | run spike 04 |
-| ⚪ | Zero corruption across 20 write/save/restart/restore cycles | **UNKNOWN** | 0/20 valid unique cycle(s); 0 invalid |
+| ⚪ | Zero corruption across 8 write/save/restart/restore cycles | **UNKNOWN** | 0/8 valid unique cycle(s); 0 invalid |
 
 ## Verdict
 

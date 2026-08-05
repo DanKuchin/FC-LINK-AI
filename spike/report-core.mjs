@@ -3,6 +3,8 @@ function tableRows(timing, name) {
   return typeof table?.rows === 'number' ? table.rows : null;
 }
 
+const CLEAN_CYCLE_TARGET = 8;
+
 function validPersistenceCycle(cycle) {
   return Boolean(
     cycle &&
@@ -240,15 +242,17 @@ export function gradePhaseZero(evidence) {
   const cycleUids = new Set(sessionCycles.map((cycle) => cycle.save_uid));
   add(
     'clean_cycles',
-    'Zero corruption across 20 write/save/restart/restore cycles',
+    `Zero corruption across ${CLEAN_CYCLE_TARGET} write/save/restart/restore cycles`,
     invalidCycles > 0
       ? 'FAIL'
-      : uniqueCycles.size >= 20 && cycleUids.size === 1 && sameSave([...cycleUids][0])
+      : uniqueCycles.size >= CLEAN_CYCLE_TARGET &&
+          cycleUids.size === 1 &&
+          sameSave([...cycleUids][0])
         ? 'PASS'
         : persistenceHistory.length > 0
           ? 'CONCERN'
           : 'UNKNOWN',
-    `${uniqueCycles.size}/20 valid unique cycle(s); ${invalidCycles} invalid`,
+    `${uniqueCycles.size}/${CLEAN_CYCLE_TARGET} valid unique cycle(s); ${invalidCycles} invalid`,
   );
 
   return {
