@@ -29,13 +29,15 @@ sim_event emitted
                1. load deterministic state (personality, emotion, relationships)
                2. retrieve memories (bounded: ≤7, scored)
                3. compute VALID REACTIONS from the FSM                     ← simulation decides
-               4. select one (Stage 0–2: deterministic; Stage 3: LLM picks from the menu)
-               5. apply effects, write sim_event, write memory              ← simulation decides
-               6. render wording (template, or LLM)                        ← the only AI step
+               4. select one deterministically and apply its effects
+               5. write sim_event and form any memory                      ← simulation decides
+               6. choose emphasis among mechanically identical presentation
+                  plans, then render wording (template or LLM)             ← the only AI step
                7. deactivate — nothing persists in process memory
 ```
 
-Steps 1–5 run with no model at all. Step 6 is the only place an API key is needed, and it is skippable.
+Steps 1–5 run with no model at all. Step 6 cannot change canonical state; it is
+the only place an API key is needed, and it is skippable.
 
 ### 1.3 Character record
 

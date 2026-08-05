@@ -23,7 +23,7 @@ Full reasoning and evidence: [docs/00-verdict-and-feasibility.md](docs/00-verdic
 |---|---|
 | [00 — Verdict & feasibility](docs/00-verdict-and-feasibility.md) | Executive verdict, what this is technically, capability-by-capability evidence, feasibility matrix, confirmed vs assumed |
 | [01 — Product concept](docs/01-product-concept.md) | Name, pitch, audience, pillars, differentiation, gameplay loop, first-launch → end-of-season experience |
-| [02 — Systems & simulation](docs/02-systems-and-simulation.md) | All ten game systems specified; fidelity tiers; time model; determinism; advance-time pseudocode |
+| [02 — Systems & simulation](docs/02-systems-and-simulation.md) | Twelve game systems including institutional authority and manager identity; fidelity tiers; time model; determinism; advance-time pseudocode |
 | [03 — Sync architecture](docs/03-sync-architecture.md) | Protocol, identity mapping, **source-of-truth matrix**, checkpoints, write pipeline, the transfer-mismatch failure and how it is prevented |
 | [04 — Stack, architecture, repo, schema](docs/04-stack-architecture-repo-schema.md) | Stack comparison and decision, Mermaid architecture, repository tree, full initial SQL schema |
 | [05 — UI specification](docs/05-ui-specification.md) | Design principles, navigation, accessibility, 20 screen specs |
@@ -31,20 +31,21 @@ Full reasoning and evidence: [docs/00-verdict-and-feasibility.md](docs/00-verdic
 | [07 — Testing & narrative](docs/07-testing-and-narrative.md) | Unit/integration/save/simulation/compatibility tests, invariants, CI soak plan, the AI boundary |
 | [08 — Distribution, legal, business, risk](docs/08-distribution-legal-business-risk.md) | Packaging, Bridge Doctor, FC-patch runbook, legal posture, business model, ranked risk register, effort, go/no-go |
 
-### AI layer (Stage 0 lands in Phase 3; nothing here is on the MVP critical path)
+### AI and institutional layer (Stage 0 lands in Phase 3; nothing here is on the MVP critical path)
 
 | Doc | Contents |
 |---|---|
 | [10 — Verdict & doctrine](docs/10-ai-verdict-and-doctrine.md) | Recommendation, design philosophy, the control boundary and how it's enforced |
-| [11 — Opportunity map](docs/11-ai-opportunity-map.md) | All 16 AI opportunities specified, ranked feature matrix, **the first vertical slice** |
+| [11 — Opportunity map](docs/11-ai-opportunity-map.md) | AI opportunities plus authority, manager identity, belief provenance, decision lens and career chapters; ranked matrix; **the first vertical slice** |
 | [12 — Character, memory, emotion](docs/12-ai-character-memory-emotion.md) | Lazy character model, memory schema and decay, the knowledge boundary, emotion model |
 | [13 — Conversation & actors](docs/13-ai-conversation-and-actors.md) | Hybrid conversation design, agents, board/staff, media, supporters, rivals, scouting |
 | [14 — Narrative & events](docs/14-ai-narrative-and-events.md) | Narrative director, **20 emergent story examples**, event taxonomy and the suppression engine |
 | [15 — Tools, schemas, prompts](docs/15-ai-tools-schemas-prompts.md) | Permission ladder, 12 JSON schemas, 5-layer prompts, 6 worked prompts, anti-repetition |
 | [16 — Safety, cost, latency, controls](docs/16-ai-safety-cost-latency-controls.md) | Hallucination gates, local vs cloud, cost model, latency budgets, presets |
 | [17 — Architecture & schema](docs/17-ai-architecture-and-schema.md) | Mermaid architecture + 3 sequence diagrams, migrations 0002–0004, interfaces, debug console |
-| [18 — Evaluation, roadmap, tickets](docs/18-ai-testing-roadmap-tickets.md) | Deterministic + model evals, 6 stages, **the first 40 AI tickets** |
-| [19 — Risks, rejects, decision](docs/19-ai-risks-rejects-and-decision.md) | Risk register, 11 rejected features, effort, go/no-go, next seven actions |
+| [18 — Evaluation, roadmap, tickets](docs/18-ai-testing-roadmap-tickets.md) | Deterministic + model + retelling evals, 7 stages, **the first 48 AI and Director tickets** |
+| [19 — Risks, rejects, decision](docs/19-ai-risks-rejects-and-decision.md) | Expanded risk register and rejected features, effort, go/no-go, next seven actions |
+| [20 — Living Football Director](docs/20-living-football-director.md) | Broader career-ecology vision: authority, beliefs, precedent, manager identity, agency, chapters and research basis |
 
 ---
 

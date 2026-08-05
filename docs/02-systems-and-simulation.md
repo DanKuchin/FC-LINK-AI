@@ -150,6 +150,63 @@ Everything above applies to the user's club. The world needs the same *outputs* 
 
 ---
 
+## K. Institution, authority and precedent
+
+- **Fantasy:** “I did not just sign a player; I won the argument over who is
+  allowed to shape this club.”
+- **Inputs:** ownership model, mandate, role appointments, delegated
+  responsibilities, board votes, user principles, promises and repeated
+  evidence from the event log.
+- **State:** a versioned club constitution; per-decision authority grants
+  (`recommend`, `approve`, `veto`, `execute`, `informed`); formal and informal
+  influence; delegations; favours; evidence-backed club precedents.
+- **Decisions:** negotiate authority when hired, delegate or reclaim a
+  responsibility, seek approval, form a coalition, challenge a veto, amend a
+  club principle.
+- **Outputs:** valid action space, political consequences, mandate changes,
+  staff autonomy, club-identity evidence and future hiring expectations.
+- **Depends on:** board, staff, promises, relationships, finance and the event
+  log. It does not depend on an FC write.
+- **Fails when:** authority is cosmetic, a character acts outside scope without
+  an explicit override, or “club culture” changes from one isolated event.
+- **Screens:** Boardroom → Operating Model, Staff → Responsibilities, Decision
+  lens, Club history.
+- **MVP:** the three Board & Mandate actors already have authority scopes. No new
+  surface beyond showing who can decide what.
+- **Later:** negotiated job control, delegation, ownership transition,
+  coalitions, formal versus informal power and precedent-driven club identity.
+- **Tests:** every executed institutional action has a valid authority path or a
+  recorded override; a constitution change is versioned; every precedent retains
+  source event ids; replay produces identical authority and precedent state.
+
+## L. Manager identity and career authorship
+
+- **Fantasy:** “Clubs do not see a level and a trophy count. They know how I
+  operate, because I have behaved that way for ten years.”
+- **Inputs:** stated principles, promises, spending, selection, delegation,
+  public positions, staff treatment, crisis decisions, results and career moves.
+- **State:** evidence-backed reputation facets held separately by constituencies;
+  active principles; contradictions; career chapters; portable relationships.
+- **Decisions:** declare or retire a principle, accept a compromise, explain a
+  reversal, leave or stay, choose which part of a record to defend in an
+  interview.
+- **Outputs:** job compatibility, mandate terms, staff willingness, agent posture,
+  supporter expectations and callbacks at future clubs.
+- **Depends on:** institution, memory, media, board, promises and world
+  simulation.
+- **Fails when:** identity is an XP tree, a self-selected label grants mechanical
+  benefits, or every constituency sees the same private evidence.
+- **Screens:** Manager profile, Career timeline, Interviews, Season chapter.
+- **MVP:** a traceable record of promises and mandate performance.
+- **Later:** operating philosophy, constituency-specific reputation, career
+  chapters and privacy-safe scenario capsules. See
+  [doc 20](20-living-football-director.md).
+- **Tests:** no reputation facet changes without evidence; fixed replay yields
+  fixed identity; different holders may disagree only because their evidence or
+  weighting differs; a chapter claim without provenance cannot be stored.
+
+---
+
 ## 3. Time model
 
 **Hybrid: a daily tick that mostly does nothing, plus an event queue that does the work.**
@@ -223,6 +280,6 @@ Four properties this shape buys you: one transaction per day (a crash loses at m
 
 ## 4. Entity list
 
-`career, season, competition, club, team, player, staff, manager_profile, agent, journalist, board_member, contract, promise, transfer_negotiation, transfer_transaction, fixture, match_result, player_match_stat, injury, suspension, relationship, scout_assignment, scouting_report, financial_transaction, narrative_event, message, historical_record, sim_event, sync_snapshot, sync_operation, external_id_mapping`
+`career, season, competition, club, team, player, staff, manager_profile, agent, journalist, board_member, contract, promise, authority_grant, club_principle, belief, precedent, narrative_arc, career_chapter, transfer_negotiation, transfer_transaction, fixture, match_result, player_match_stat, injury, suspension, relationship, scout_assignment, scouting_report, financial_transaction, narrative_event, message, historical_record, sim_event, sync_snapshot, sync_operation, external_id_mapping`
 
-Append-only by policy: `sim_event`, `financial_transaction`, `narrative_event`, `historical_record`, `player_match_stat`, `sync_operation`, `promise` (state changes are new rows referencing the original, never edits).
+Append-only by policy: `sim_event`, `financial_transaction`, `narrative_event`, `historical_record`, `player_match_stat`, `sync_operation`, `promise`, `authority_grant`, `belief`, `precedent`, `career_chapter` (state changes are new rows referencing the original, never edits).

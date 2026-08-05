@@ -24,7 +24,7 @@ database.
 | Check | Result |
 |---|---|
 | `pnpm build` | pass; renderer, Electron main and CommonJS preload built |
-| `pnpm check` | pass; 29 files, 186 tests |
+| `pnpm check` | pass; 29 files, 187 tests |
 | Electron cold-boot smoke | pass; no renderer/preload errors; typed IPC + Electron `node:sqlite` + live Doctor + accessible Squad trust surface |
 | Process killed mid-day transaction | pass; prior day restored, SQLite integrity clean |
 | Migration corpus | pass; desktop startup checkpoints and opens schema v1 at v4 with career row preserved |

@@ -79,7 +79,7 @@ Move NUMBERS:   computed by the valuation and finance systems.  ← simulation
 Move LANGUAGE:  rendered by the model, numbers injected after.  ← AI
 ```
 
-**The model never emits a figure.** The `AgentNegotiationMove` schema has no numeric fields at all (doc 15 §4) — it carries a `move` enum, a `tone`, a `justification_ref` pointing at a supplied fact, and prose with `{{fee}}`-style slots the deterministic layer fills. This makes an entire category of hallucination structurally impossible rather than validated against.
+**The model never selects the move or emits a figure.** The deterministic engine supplies the selected move and valid expression plans. The `AgentNegotiationExpression` schema (doc 15 §4) carries only the selected `move`, a mechanically equivalent `expression_plan_id`, a `justification_ref` pointing at a supplied fact, and prose with `{{fee}}`-style slots the deterministic layer fills. This makes strategy drift and numeric hallucination structurally impossible rather than merely validated after generation.
 
 ### 2.2 What each behaviour is grounded in
 

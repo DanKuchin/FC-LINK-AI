@@ -53,6 +53,53 @@ Rules that keep it honest:
 - **A hard cap of 5 active arcs**, with at most 3 user-centric. The other 2 slots are reserved for the world — this is the mechanism that stops the user being the centre of every story, and it is a cap, not a preference.
 - **Connecting to history** is a query: when an arc opens, the detector searches for prior arcs sharing a subject and links them. That's how "he's back at the club that sold him" happens without scripting.
 
+### 1.4 The seven-stage vocabulary is observational
+
+The broader Living Football Director uses seven labels—**seed, signal,
+escalation, decision, consequence, echo, resolution**—to describe what the event
+history currently supports. They are not a screenplay funnel.
+
+An arc can fade after a seed, resolve at a signal, skip a user decision because
+none is valid, remain dormant for years, or reopen when a later event creates an
+echo. The Director cannot create the next stage, raise tension to hit a pacing
+target or protect the arc from a player who sells its central character. It
+observes the state produced by the simulation.
+
+### 1.5 Resonance and reincorporation
+
+Significant events receive deterministic motif tags such as `promise`,
+`authority`, `loyalty`, `second_chance`, `academy`, `former_club`, and
+`public_reversal`. When a new event shares actors, commitments, causal ancestry
+or motifs, the Director may link the older event as a sourced echo. This turns
+memory into changed context instead of decorative callback text.
+
+Reincorporation research found stronger internal narrative unity and greater use
+of significant player actions, but not a corresponding automatic improvement in
+reported story quality or agency. The metric cannot be “number of callbacks.” A
+playtest must show that the user noticed, understood and valued the connection.
+See [doc 20 §5.5](20-living-football-director.md#55-resonance-the-past-becomes-mechanically-relevant-again).
+
+### 1.6 Agency and the Director's exact output
+
+The Director outputs presentation decisions only:
+
+```ts
+interface DirectorSelection {
+  arcId: number;
+  viewpointCharacterId: number | null;
+  surface: 'background' | 'inbox' | 'meeting' | 'chapter';
+  evidenceEventIds: readonly number[];
+  validIntentIds: readonly string[];
+  attentionReason: readonly string[];
+}
+```
+
+It does not output effects, deltas, event proposals or a desired resolution.
+Every valid user action remains available. If two displayed intents would lead
+to the same effect categories and follow-up eligibility, they are one choice
+with tone variants rather than two fake choices. Director on/off must yield
+byte-identical canonical state for the same user actions.
+
 ---
 
 ## 2. Twenty emergent story examples
